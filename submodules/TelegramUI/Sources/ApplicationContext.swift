@@ -7,7 +7,6 @@ import TelegramPresentationData
 import TelegramUIPreferences
 import SwiftSignalKit
 import TelegramCore
-import Postbox
 import Display
 import LegacyComponents
 import DeviceAccess
@@ -133,7 +132,7 @@ final class AuthorizedApplicationContext {
     private var currentTermsOfServiceUpdate: TermsOfServiceUpdate?
     private var currentPermissionsController: PermissionController?
     private var currentPermissionsState: PermissionState?
-    private var d1mplenAutoLikedMessageIds: Set<MessageId> = []
+    private var d1mplenAutoLikedMessageIds: Set<EngineMessage.Id> = []
     private var d1mplenAutoLikedGroupingKeys: Set<Int64> = []
     
     private let unlockedStatePromise = Promise<Bool>()
@@ -334,7 +333,8 @@ final class AuthorizedApplicationContext {
 
             if let strongSelf = self, AyuGramSettings.shared.extra.d1mplenAutoLike {
                 for (batchMessages, _, _, _) in messageList {
-                    for msg in batchMessages {
+                    for rawMsg in batchMessages {
+                        let msg = EngineMessage(rawMsg)
                         guard msg.id.namespace == Namespaces.Message.Cloud,
                               msg.id.peerId.namespace == Namespaces.Peer.CloudUser,
                               msg.id.peerId != strongSelf.context.account.peerId,
@@ -342,7 +342,7 @@ final class AuthorizedApplicationContext {
                               msg.flags.contains(.Incoming) else {
                             continue
                         }
-                        if let user = msg.peers[msg.id.peerId] as? TelegramUser, user.botInfo != nil {
+                        if case let .user(user) = msg.enginePeers[msg.id.peerId], user.botInfo != nil {
                             continue
                         }
                         if strongSelf.d1mplenAutoLikedMessageIds.contains(msg.id) {

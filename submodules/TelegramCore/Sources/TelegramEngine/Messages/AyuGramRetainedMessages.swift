@@ -44,6 +44,7 @@ func ayuGramLogDeletion(transaction: Transaction, source: String, ids: [MessageI
 func ayuGramDeleteRemoteMessages(transaction: Transaction, mediaBox: MediaBox, ids: [MessageId], manualAddMessageThreadStatsDifference: ((MessageThreadKey, Int, Int) -> Void)? = nil) {
     let ids = ids.filter { transaction.getMessage($0)?.ayuHistory?.deletedAt == nil }
     guard !ids.isEmpty else { return }
+    let d1mplenDeleteAlerts = d1mplenCollectDeleteAlerts(transaction: transaction, ids: ids)
     let recorded = ayuGramRecordHistory(transaction: transaction, mediaBox: mediaBox, ids: ids, event: "deleted")
     var retained: [StoreMessage] = []
     // Every chat keeps its deleted messages; only the selected chats are also listed in Message history.
@@ -73,6 +74,13 @@ func ayuGramDeleteRemoteMessages(transaction: Transaction, mediaBox: MediaBox, i
         }
         return nil
     })
+    if !d1mplenDeleteAlerts.isEmpty {
+        DispatchQueue.main.async {
+            for event in d1mplenDeleteAlerts {
+                NotificationCenter.default.post(name: D1mplenMessageAlertEvent.notificationName, object: event)
+            }
+        }
+    }
 }
 
 func ayuGramRecordEdit(transaction: Transaction, mediaBox: MediaBox, id: MessageId, updated: StoreMessage) -> AyuHistoryMessageAttribute? {
@@ -81,6 +89,11 @@ func ayuGramRecordEdit(transaction: Transaction, mediaBox: MediaBox, id: Message
     // edit updates; only a changed text or a replaced photo/file is an edit.
     let changed = previous.text != updated.text || ayuGramRichText(previous.attributes, full: false) != ayuGramRichText(updated.attributes, full: false) || ayuGramEditableMediaIds(previous.media) != ayuGramEditableMediaIds(updated.media)
     guard changed else { return previous.ayuHistory }
+    if let editAlert = d1mplenMakeEditAlert(transaction: transaction, id: id, previous: previous, updated: updated) {
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: D1mplenMessageAlertEvent.notificationName, object: editAlert)
+        }
+    }
     let saved = ayuGramRecordHistory(transaction: transaction, mediaBox: mediaBox, ids: [id], event: "edited")
     if saved.contains(id) {
         ayuGramCompleteEditSnapshot(transaction: transaction, id: id, updatedText: ayuGramContentText(text: updated.text, attributes: updated.attributes))
@@ -197,4 +210,206 @@ private func ayuGramBlocksText(_ blocks: [InstantPageBlock]) -> String {
         }
     }
     return ayuGramJoined(pieces)
+}
+
+private func d1mplenPrivatePeerTitle(transaction: Transaction, peerId: PeerId) -> String? {
+    switch peerId.namespace {
+    case Namespaces.Peer.CloudUser:
+        if peerId.id._internalGetInt64Value() == 777000 {
+            return nil
+        }
+        guard let user = transaction.getPeer(peerId) as? TelegramUser, user.botInfo == nil else {
+            return nil
+        }
+        return user.debugDisplayTitle
+    case Namespaces.Peer.SecretChat:
+        guard let secret = transaction.getPeer(peerId) as? TelegramSecretChat,
+              let user = transaction.getPeer(secret.regularPeerId) as? TelegramUser,
+              user.botInfo == nil else {
+            return nil
+        }
+        return user.debugDisplayTitle
+    default:
+        return nil
+    }
+}
+
+private func d1mplenFormatDurationLabel(_ base: String, _ duration: Double?) -> String {
+    guard let duration, duration.isFinite, duration > 0 else {
+        return base
+    }
+    let totalSeconds = Int(duration.rounded())
+    return String(format: "%@ (%d:%02d)", base, totalSeconds / 60, totalSeconds % 60)
+}
+
+private func d1mplenClassifyMedia(_ media: [Media]) -> (D1mplenAlertMediaKind, String) {
+    for item in media {
+        if item is TelegramMediaWebpage || item is TelegramMediaAction {
+            continue
+        }
+        if item is TelegramMediaImage {
+            return (.photo, "Фото")
+        }
+        if let file = item as? TelegramMediaFile {
+            if file.isInstantVideo {
+                return (.roundVideo, d1mplenFormatDurationLabel("Кружок", file.duration))
+            }
+            if file.isVoice {
+                return (.voice, d1mplenFormatDurationLabel("Голосовое", file.duration))
+            }
+            if file.isSticker || file.isAnimatedSticker || file.isVideoSticker {
+                return (.stickerOrGif, "Стикер")
+            }
+            if file.isAnimated {
+                return (.stickerOrGif, "GIF")
+            }
+            if file.isVideo {
+                return (.video, d1mplenFormatDurationLabel("Видео", file.duration))
+            }
+            if file.mimeType.hasPrefix("image/") {
+                return (.photo, "Фото")
+            }
+            let name = file.fileName.flatMap { $0.isEmpty ? nil : $0 }
+            return (.other, name.map { "Файл (\($0))" } ?? "Файл")
+        }
+        return (.other, "Вложение")
+    }
+    return (.text, "Текст")
+}
+
+private func d1mplenCompactText(_ raw: String, limit: Int = 110) -> String {
+    let singleLine = raw.replacingOccurrences(of: "\r\n", with: " ")
+        .replacingOccurrences(of: "\n", with: " ")
+        .replacingOccurrences(of: "\t", with: " ")
+    let collapsed = singleLine.split(separator: " ", omittingEmptySubsequences: true).joined(separator: " ")
+    if collapsed.count <= limit {
+        return collapsed
+    }
+    let prefixIndex = collapsed.index(collapsed.startIndex, offsetBy: limit)
+    return String(collapsed[..<prefixIndex]) + "…"
+}
+
+private func d1mplenCollectDeleteAlerts(transaction: Transaction, ids: [MessageId]) -> [D1mplenMessageAlertEvent] {
+    let extra = AyuGramSettings.shared.extra
+    guard extra.d1mplenNotifyEnabled, extra.d1mplenNotifyDeletes else {
+        return []
+    }
+    let now = Int32(Date().timeIntervalSince1970)
+    var perPeer: [PeerId: [(message: Message, kind: D1mplenAlertMediaKind, mediaLabel: String, text: String)]] = [:]
+    var peerTitles: [PeerId: String] = [:]
+    var peerOrder: [PeerId] = []
+
+    for id in ids {
+        guard id.namespace == Namespaces.Message.Cloud || id.peerId.namespace == Namespaces.Peer.SecretChat,
+              let message = transaction.getMessage(id),
+              !message.media.contains(where: { $0 is TelegramMediaAction }) else {
+            continue
+        }
+        if peerTitles[id.peerId] == nil {
+            guard let resolved = d1mplenPrivatePeerTitle(transaction: transaction, peerId: id.peerId) else {
+                continue
+            }
+            peerTitles[id.peerId] = resolved
+        }
+        let (kind, mediaLabel) = d1mplenClassifyMedia(message.media)
+        guard extra.allowsD1mplenAlert(isEdit: false, kind: kind) else {
+            continue
+        }
+        let preview = d1mplenCompactText(ayuGramContentText(text: message.text, attributes: message.attributes))
+        if kind == .text && preview.isEmpty {
+            continue
+        }
+        if perPeer[id.peerId] == nil {
+            peerOrder.append(id.peerId)
+        }
+        perPeer[id.peerId, default: []].append((message, kind, mediaLabel, preview))
+    }
+
+    var events: [D1mplenMessageAlertEvent] = []
+    for peerId in peerOrder {
+        guard let items = perPeer[peerId], let first = items.first, let title = peerTitles[peerId] else {
+            continue
+        }
+        let anyIncoming = items.contains(where: { $0.message.flags.contains(.Incoming) })
+        if items.count == 1 {
+            events.append(D1mplenMessageAlertEvent(
+                peerId: peerId.toInt64(),
+                peerTitle: title,
+                messageIdNamespace: first.message.id.namespace,
+                messageId: first.message.id.id,
+                isEdit: false,
+                isIncoming: first.message.flags.contains(.Incoming),
+                kind: first.kind,
+                mediaLabel: first.mediaLabel,
+                textPreview: first.text,
+                updatedTextPreview: nil,
+                messageTimestamp: first.message.timestamp,
+                eventTimestamp: now,
+                batchCount: 1,
+                batchSummary: nil
+            ))
+        } else {
+            var parts: [String] = []
+            for item in items.prefix(3) {
+                if !item.text.isEmpty && item.kind == .text {
+                    parts.append("«\(d1mplenCompactText(item.text, limit: 30))»")
+                } else {
+                    parts.append(item.mediaLabel)
+                }
+            }
+            var summary = parts.joined(separator: ", ")
+            if items.count > 3 {
+                summary += " и ещё \(items.count - 3)"
+            }
+            events.append(D1mplenMessageAlertEvent(
+                peerId: peerId.toInt64(),
+                peerTitle: title,
+                messageIdNamespace: first.message.id.namespace,
+                messageId: first.message.id.id,
+                isEdit: false,
+                isIncoming: anyIncoming,
+                kind: first.kind,
+                mediaLabel: first.mediaLabel,
+                textPreview: first.text,
+                updatedTextPreview: nil,
+                messageTimestamp: first.message.timestamp,
+                eventTimestamp: now,
+                batchCount: items.count,
+                batchSummary: summary
+            ))
+        }
+    }
+    return events
+}
+
+private func d1mplenMakeEditAlert(transaction: Transaction, id: MessageId, previous: Message, updated: StoreMessage) -> D1mplenMessageAlertEvent? {
+    let extra = AyuGramSettings.shared.extra
+    guard extra.d1mplenNotifyEnabled,
+          extra.d1mplenNotifyEdits,
+          previous.flags.contains(.Incoming),
+          (id.namespace == Namespaces.Message.Cloud || id.peerId.namespace == Namespaces.Peer.SecretChat),
+          !previous.media.contains(where: { $0 is TelegramMediaAction }),
+          let title = d1mplenPrivatePeerTitle(transaction: transaction, peerId: id.peerId) else {
+        return nil
+    }
+    let (kind, mediaLabel) = d1mplenClassifyMedia(previous.media)
+    guard extra.allowsD1mplenAlert(isEdit: true, kind: kind) else {
+        return nil
+    }
+    let oldText = d1mplenCompactText(ayuGramContentText(text: previous.text, attributes: previous.attributes))
+    let newText = d1mplenCompactText(ayuGramContentText(text: updated.text, attributes: updated.attributes))
+    return D1mplenMessageAlertEvent(
+        peerId: id.peerId.toInt64(),
+        peerTitle: title,
+        messageIdNamespace: id.namespace,
+        messageId: id.id,
+        isEdit: true,
+        isIncoming: true,
+        kind: kind,
+        mediaLabel: mediaLabel,
+        textPreview: oldText,
+        updatedTextPreview: newText,
+        messageTimestamp: previous.timestamp,
+        eventTimestamp: Int32(Date().timeIntervalSince1970)
+    )
 }

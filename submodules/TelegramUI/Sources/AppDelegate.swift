@@ -3306,12 +3306,13 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
                     }
                 } else {
                     if let (peerId, threadId) = peerIdFromNotification(response.notification) {
+                        let isD1mplenAlert = response.notification.request.content.userInfo["d1mplenAlert"] != nil
                         var messageId: MessageId? = nil
-                        if response.notification.request.content.categoryIdentifier == "c" || response.notification.request.content.categoryIdentifier == "ayu-c" || response.notification.request.content.categoryIdentifier == "t" {
+                        if response.notification.request.content.categoryIdentifier == "c" || response.notification.request.content.categoryIdentifier == "ayu-c" || response.notification.request.content.categoryIdentifier == "t" || isD1mplenAlert {
                             messageId = messageIdFromNotification(peerId: peerId, notification: response.notification)
                         }
                         let storyId = storyIdFromNotification(peerId: peerId, notification: response.notification)
-                        self.openChatWhenReady(accountId: accountId, peerId: peerId, threadId: threadId, messageId: messageId, storyId: storyId)
+                        self.openChatWhenReady(accountId: accountId, peerId: peerId, threadId: threadId, messageId: messageId, storyId: storyId, alwaysKeepMessageId: isD1mplenAlert)
                     }
                 }
                 completionHandler()
@@ -3495,6 +3496,10 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         if notification.request.content.userInfo[CallUnlockVideoNotificationState.userInfoKey] != nil {
             completionHandler([])
+            return
+        }
+        if notification.request.content.userInfo["d1mplenAlert"] != nil {
+            completionHandler([.banner, .list, .sound])
             return
         }
         

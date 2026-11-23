@@ -1,3 +1,4 @@
+import SGSimpleSettings
 import Foundation
 import UIKit
 import AsyncDisplayKit
@@ -273,12 +274,24 @@ open class TabBarControllerImpl: ViewController, TabBarController {
             guard let self else {
                 return
             }
-            self.currentController?.tabBarActivateSearch()
+            if self.currentController?.tabBarSearchState != nil {
+                self.currentController?.tabBarActivateSearch()
+            } else if let index = self.controllers.firstIndex(where: { $0.tabBarSearchState != nil }) {
+                let targetController = self.controllers[index]
+                self.selectedIndex = index
+                DispatchQueue.main.async { [weak targetController] in
+                    targetController?.tabBarActivateSearch()
+                }
+            }
         }, deactivateSearch: { [weak self] in
             guard let self else {
                 return
             }
-            self.currentController?.tabBarDeactivateSearch()
+            if self.currentController?.tabBarSearchState != nil {
+                self.currentController?.tabBarDeactivateSearch()
+            } else if let controller = self.controllers.first(where: { $0.tabBarSearchState?.isActive == true }) {
+                controller.tabBarDeactivateSearch()
+            }
         })
         
         self.updateSelectedIndex()
@@ -395,7 +408,15 @@ open class TabBarControllerImpl: ViewController, TabBarController {
         
         self.validLayout = layout
         
-        let bottomInset = self.tabBarControllerNode.containerLayoutUpdated(layout, toolbar: self.currentController?.toolbar, transition: transition)
+        let effectiveSearchState: ViewController.TabBarSearchState?
+        if let state = self.currentController?.tabBarSearchState {
+            effectiveSearchState = state
+        } else if SGSimpleSettings.shared.tabBarSearchEnabled, self.controllers.contains(where: { $0.tabBarSearchState != nil }) {
+            effectiveSearchState = ViewController.TabBarSearchState(isActive: false)
+        } else {
+            effectiveSearchState = nil
+        }
+        let bottomInset = self.tabBarControllerNode.containerLayoutUpdated(layout, toolbar: self.currentController?.toolbar, searchState: effectiveSearchState, transition: transition)
         
         if let currentController = self.currentController {
             currentController.view.frame = CGRect(origin: CGPoint(), size: layout.size)
@@ -458,6 +479,7 @@ open class TabBarControllerImpl: ViewController, TabBarController {
         if let currentController = self.currentController {
             currentController.viewWillAppear(animated)
         }
+        self.updateLayout(transition: .immediate)
     }
     
     override open func viewDidAppear(_ animated: Bool) {

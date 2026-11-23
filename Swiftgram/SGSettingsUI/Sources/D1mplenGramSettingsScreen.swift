@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import UserNotifications
 import Display
 import SwiftSignalKit
 import AccountContext
@@ -12,11 +13,23 @@ import SGSimpleSettings
 
 private enum D1mplenScreenSection: Int32 {
     case features
+    case notifications
+    case notificationTypes
 }
 
 private enum D1mplenScreenToggle: Equatable {
     case autoLike
     case tabBarSearch
+    case notifyEnabled
+    case notifyDeletes
+    case notifyEdits
+    case notifyText
+    case notifyRoundVideo
+    case notifyVoice
+    case notifyPhoto
+    case notifyVideo
+    case notifyStickerGif
+    case notifyOther
 }
 
 private final class D1mplenScreenArguments {
@@ -96,8 +109,125 @@ private func d1mplenScreenEntries(extra: AyuGramExtraSettings, tabBarSearchEnabl
     entries.append(.footer(
         id: 130,
         section: .features,
-        text: "Авто-лайк срабатывает только в личных чатах на входящие сообщения от людей (боты и каналы игнорируются). Кнопка поиска (лупа) в правом нижнем углу обновляется сразу при возврате в чаты."
+        text: "Авто-лайк срабатывает только в личных чатах на входящие сообщения от людей (боты и каналы игнорируются). Кнопка поиска (лупа) остаётся видимой на всех вкладках, включая Настройки."
     ))
+
+    entries.append(.header(id: 200, section: .notifications, text: "УВЕДОМЛЕНИЯ (ЛИЧНЫЕ ЧАТЫ)"))
+    entries.append(.toggle(
+        id: 210,
+        section: .notifications,
+        key: .notifyEnabled,
+        symbol: "bell.badge.fill",
+        color: AyuGramRowColor.orange,
+        title: "Уведомления об удалениях и изменениях",
+        subtitle: "Показывать в ЛС, кто, что и когда удалил или изменил",
+        value: extra.d1mplenNotifyEnabled
+    ))
+    if extra.d1mplenNotifyEnabled {
+        entries.append(.toggle(
+            id: 220,
+            section: .notifications,
+            key: .notifyDeletes,
+            symbol: "trash.fill",
+            color: AyuGramRowColor.red,
+            title: "Удаления сообщений",
+            subtitle: nil,
+            value: extra.d1mplenNotifyDeletes
+        ))
+        entries.append(.toggle(
+            id: 230,
+            section: .notifications,
+            key: .notifyEdits,
+            symbol: "pencil",
+            color: AyuGramRowColor.orange,
+            title: "Изменения сообщений",
+            subtitle: nil,
+            value: extra.d1mplenNotifyEdits
+        ))
+
+        entries.append(.header(id: 300, section: .notificationTypes, text: "ТИПЫ СООБЩЕНИЙ"))
+        entries.append(.toggle(
+            id: 310,
+            section: .notificationTypes,
+            key: .notifyText,
+            symbol: "text.bubble.fill",
+            color: AyuGramRowColor.blue,
+            title: "Текст",
+            subtitle: nil,
+            value: extra.d1mplenNotifyText
+        ))
+        entries.append(.toggle(
+            id: 320,
+            section: .notificationTypes,
+            key: .notifyRoundVideo,
+            symbol: "record.circle.fill",
+            color: AyuGramRowColor.purple,
+            title: "Кружки (видеосообщения)",
+            subtitle: nil,
+            value: extra.d1mplenNotifyRoundVideo
+        ))
+        entries.append(.toggle(
+            id: 330,
+            section: .notificationTypes,
+            key: .notifyVoice,
+            symbol: "waveform",
+            color: AyuGramRowColor.teal,
+            title: "Голосовые сообщения",
+            subtitle: nil,
+            value: extra.d1mplenNotifyVoice
+        ))
+        entries.append(.toggle(
+            id: 340,
+            section: .notificationTypes,
+            key: .notifyPhoto,
+            symbol: "photo.fill",
+            color: AyuGramRowColor.green,
+            title: "Фото",
+            subtitle: nil,
+            value: extra.d1mplenNotifyPhoto
+        ))
+        entries.append(.toggle(
+            id: 350,
+            section: .notificationTypes,
+            key: .notifyVideo,
+            symbol: "video.fill",
+            color: AyuGramRowColor.indigo,
+            title: "Видео",
+            subtitle: nil,
+            value: extra.d1mplenNotifyVideo
+        ))
+        entries.append(.toggle(
+            id: 360,
+            section: .notificationTypes,
+            key: .notifyStickerGif,
+            symbol: "face.smiling.fill",
+            color: AyuGramRowColor.orange,
+            title: "Стикеры и GIF",
+            subtitle: nil,
+            value: extra.d1mplenNotifyStickerGif
+        ))
+        entries.append(.toggle(
+            id: 370,
+            section: .notificationTypes,
+            key: .notifyOther,
+            symbol: "doc.fill",
+            color: AyuGramRowColor.gray,
+            title: "Файлы и прочее",
+            subtitle: nil,
+            value: extra.d1mplenNotifyOther
+        ))
+        entries.append(.footer(
+            id: 380,
+            section: .notificationTypes,
+            text: "Уведомления приходят только для личных чатов с пользователями (боты, каналы и Избранное игнорируются). Показывается имя, тип/текст сообщения и точное время. Нажатие откроет нужный чат."
+        ))
+    } else {
+        entries.append(.footer(
+            id: 240,
+            section: .notifications,
+            text: "Включите, чтобы получать уведомления об удалении или редактировании текста, кружков, голосовых и медиа в личных чатах."
+        ))
+    }
 
     return entries
 }
@@ -119,6 +249,29 @@ public func d1mplenGramSettingsScreen(context: AccountContext) -> ViewController
         case .tabBarSearch:
             SGSimpleSettings.shared.tabBarSearchEnabled = value
             NotificationCenter.default.post(name: AyuGramSettings.didChange, object: AyuGramSettings.shared)
+        case .notifyEnabled:
+            if value {
+                UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+            }
+            AyuGramSettings.shared.updateExtra { $0.d1mplenNotifyEnabled = value }
+        case .notifyDeletes:
+            AyuGramSettings.shared.updateExtra { $0.d1mplenNotifyDeletes = value }
+        case .notifyEdits:
+            AyuGramSettings.shared.updateExtra { $0.d1mplenNotifyEdits = value }
+        case .notifyText:
+            AyuGramSettings.shared.updateExtra { $0.d1mplenNotifyText = value }
+        case .notifyRoundVideo:
+            AyuGramSettings.shared.updateExtra { $0.d1mplenNotifyRoundVideo = value }
+        case .notifyVoice:
+            AyuGramSettings.shared.updateExtra { $0.d1mplenNotifyVoice = value }
+        case .notifyPhoto:
+            AyuGramSettings.shared.updateExtra { $0.d1mplenNotifyPhoto = value }
+        case .notifyVideo:
+            AyuGramSettings.shared.updateExtra { $0.d1mplenNotifyVideo = value }
+        case .notifyStickerGif:
+            AyuGramSettings.shared.updateExtra { $0.d1mplenNotifyStickerGif = value }
+        case .notifyOther:
+            AyuGramSettings.shared.updateExtra { $0.d1mplenNotifyOther = value }
         }
     })
     let signal = combineLatest(context.sharedContext.presentationData, changes)

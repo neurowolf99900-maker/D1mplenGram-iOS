@@ -236,13 +236,24 @@ final class AyuGramBackgroundNotifier {
     private var seenGroupOrder: [String] = []
     private var loadingAvatars = Set<String>()
     private var pending: [AccountRecordId: [EnginePeer.Id: [(identifier: String, index: EngineMessage.Index)]]] = [:]
+    private var d1mplenAlertObserver: NSObjectProtocol?
+    private var d1mplenSeenAlerts = Set<String>()
+    private var d1mplenSeenAlertOrder: [String] = []
 
     init(presentationData: @escaping () -> PresentationData?) {
         self.presentationData = presentationData
         AyuGramBackgroundNotifier.current = self
+        self.d1mplenAlertObserver = NotificationCenter.default.addObserver(forName: D1mplenMessageAlertEvent.notificationName, object: nil, queue: .main, using: { [weak self] notification in
+            if let event = notification.object as? D1mplenMessageAlertEvent {
+                self?.postD1mplenAlert(event)
+            }
+        })
     }
 
     deinit {
+        if let observer = self.d1mplenAlertObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
         self.disposables.dispose()
         self.readDisposables.dispose()
     }
@@ -675,5 +686,107 @@ final class AyuGramBackgroundNotifier {
                 UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: identifier, content: plain, trigger: nil), withCompletionHandler: nil)
             }
         })
+    }
+
+    private func postD1mplenAlert(_ event: D1mplenMessageAlertEvent) {
+        guard AyuGramSettings.shared.extra.d1mplenNotifyEnabled else {
+            return
+        }
+        if self.accounts.values.contains(where: { $0.peerId.toInt64() == event.peerId }) {
+            return
+        }
+        let dedupKey = "\(event.isEdit ? "e" : "d")_\(event.peerId)_\(event.messageId)_\(event.eventTimestamp / 2)"
+        if self.d1mplenSeenAlerts.contains(dedupKey) {
+            return
+        }
+        self.d1mplenSeenAlerts.insert(dedupKey)
+        self.d1mplenSeenAlertOrder.append(dedupKey)
+        if self.d1mplenSeenAlertOrder.count > 200 {
+            self.d1mplenSeenAlerts.remove(self.d1mplenSeenAlertOrder.removeFirst())
+        }
+
+        let eventDate = Date(timeIntervalSince1970: TimeInterval(event.eventTimestamp))
+        let timeFormatter = DateFormatter()
+        timeFormatter.locale = Locale(identifier: "ru_RU")
+        timeFormatter.dateFormat = "HH:mm"
+        let eventTime = timeFormatter.string(from: eventDate)
+
+        var sentSuffix = ""
+        if event.messageTimestamp > 0 && abs(event.eventTimestamp - event.messageTimestamp) >= 120 {
+            let msgDate = Date(timeIntervalSince1970: TimeInterval(event.messageTimestamp))
+            if Calendar.current.isDate(msgDate, inSameDayAs: eventDate) {
+                sentSuffix = " (от \(timeFormatter.string(from: msgDate)))"
+            } else {
+                let dateFormatter = DateFormatter()
+                dateFormatter.locale = Locale(identifier: "ru_RU")
+                dateFormatter.dateFormat = "dd.MM HH:mm"
+                sentSuffix = " (от \(dateFormatter.string(from: msgDate)))"
+            }
+        }
+
+        let who = event.peerTitle.isEmpty ? "Собеседник" : event.peerTitle
+        let title: String
+        let body: String
+        if event.isEdit {
+            title = "✏️ \(who) изменил(а) сообщение"
+            let newText = event.updatedTextPreview ?? ""
+            if !event.textPreview.isEmpty && !newText.isEmpty && event.textPreview != newText {
+                body = "Было: «\(event.textPreview)» → Стало: «\(newText)» • в \(eventTime)\(sentSuffix)"
+            } else if !event.textPreview.isEmpty && event.textPreview != newText {
+                body = "\(event.mediaLabel): было «\(event.textPreview)» → стало «\(newText.isEmpty ? "—" : newText)» • в \(eventTime)\(sentSuffix)"
+            } else if !newText.isEmpty && event.textPreview.isEmpty {
+                body = "\(event.mediaLabel): «\(newText)» • в \(eventTime)\(sentSuffix)"
+            } else {
+                body = "\(event.mediaLabel) (заменено медиа) • в \(eventTime)\(sentSuffix)"
+            }
+        } else if event.batchCount > 1 {
+            title = event.isIncoming ? "🗑 \(who) удалил(а) \(event.batchCount) сообщ." : "🗑 Удалено \(event.batchCount) сообщ. (\(who))"
+            body = "\(event.batchSummary ?? event.mediaLabel) • в \(eventTime)"
+        } else {
+            title = event.isIncoming ? "🗑 \(who) удалил(а) сообщение" : "🗑 Удалено ваше сообщение (\(who))"
+            if event.kind == .text {
+                body = event.textPreview.isEmpty ? "Текст • в \(eventTime)\(sentSuffix)" : "«\(event.textPreview)» • в \(eventTime)\(sentSuffix)"
+            } else if !event.textPreview.isEmpty {
+                body = "\(event.mediaLabel): «\(event.textPreview)» • в \(eventTime)\(sentSuffix)"
+            } else {
+                body = "\(event.mediaLabel) • в \(eventTime)\(sentSuffix)"
+            }
+        }
+
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        content.categoryIdentifier = "r"
+        content.threadIdentifier = "d1mplen-alert-\(event.peerId)"
+        var userInfo: [AnyHashable: Any] = [
+            "d1mplenAlert": true,
+            "peerId": event.peerId,
+            "messageId.namespace": event.messageIdNamespace,
+            "messageId.id": event.messageId
+        ]
+
+        let accountEntry: (key: AccountRecordId, value: Account)? = self.primaryId.flatMap { id in
+            self.accounts[id].map { (id, $0) }
+        } ?? self.accounts.first
+        if let accountEntry {
+            userInfo["accountId"] = accountEntry.key.int64
+        }
+        content.userInfo = userInfo
+
+        let identifier = "d1mplen-\(event.isEdit ? "e" : "d")-\(event.peerId)-\(event.messageId)-\(event.eventTimestamp)"
+        if let accountEntry {
+            let _ = (TelegramEngine(account: accountEntry.value).data.get(TelegramEngine.EngineData.Item.Peer.Peer(id: EnginePeer.Id(event.peerId)))
+            |> deliverOnMainQueue).startStandalone(next: { [weak self] peer in
+                guard let self else {
+                    UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: identifier, content: content, trigger: nil), withCompletionHandler: nil)
+                    return
+                }
+                let avatar = peer.flatMap { self.avatarData(account: accountEntry.value, accountId: accountEntry.key, peer: $0) }
+                self.deliver(content: content, identifier: identifier, title: title, conversationId: "\(event.peerId)", avatar: avatar, picture: nil)
+            })
+        } else {
+            UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: identifier, content: content, trigger: nil), withCompletionHandler: nil)
+        }
     }
 }

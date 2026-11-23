@@ -210,8 +210,8 @@ final class TabBarControllerNode: ASDisplayNode {
     }
     
     /// The bottom inset the current tab gets, or nil to leave the tab's own.
-    func containerLayoutUpdated(_ layout: ContainerViewLayout, toolbar: Toolbar?, transition: ContainedViewLayoutTransition) -> CGFloat? {
-        let params = Params(layout: layout, toolbar: toolbar, isTabBarHidden: self.tabBarHidden, currentControllerSearchState: self.currentController?.tabBarSearchState, itemCount: self.tabBarItems.count, tabBarSearchEnabled: SGSimpleSettings.shared.tabBarSearchEnabled)
+    func containerLayoutUpdated(_ layout: ContainerViewLayout, toolbar: Toolbar?, searchState: ViewController.TabBarSearchState?, transition: ContainedViewLayoutTransition) -> CGFloat? {
+        let params = Params(layout: layout, toolbar: toolbar, isTabBarHidden: self.tabBarHidden, currentControllerSearchState: searchState, itemCount: self.tabBarItems.count, tabBarSearchEnabled: SGSimpleSettings.shared.tabBarSearchEnabled)
         if let layoutResult = self.layoutResult, layoutResult.params == params {
             return layoutResult.bottomInset
         } else {
@@ -305,10 +305,8 @@ final class TabBarControllerNode: ASDisplayNode {
         let isSystemLayout = sidePlacement == nil && !isCompact && !isWide
 
         var keyboardBottomInset: CGFloat = 0.0
-        if let currentController = self.currentController {
-            if let tabBarSearchState = currentController.tabBarSearchState, tabBarSearchState.isActive, let inputHeight = params.layout.inputHeight, inputHeight != 0.0 {
-                keyboardBottomInset = inputHeight + 8.0
-            }
+        if let tabBarSearchState = params.currentControllerSearchState, tabBarSearchState.isActive, let inputHeight = params.layout.inputHeight, inputHeight != 0.0 {
+            keyboardBottomInset = inputHeight + 8.0
         }
 
         var sideInset: CGFloat = 12.0
@@ -400,7 +398,7 @@ final class TabBarControllerNode: ASDisplayNode {
                         }
                     )
                 },
-                search: (sidePlacement != nil || !SGSimpleSettings.shared.tabBarSearchEnabled) ? nil : self.currentController?.tabBarSearchState.flatMap { tabBarSearchState in
+                search: (sidePlacement != nil || !params.tabBarSearchEnabled) ? nil : params.currentControllerSearchState.flatMap { tabBarSearchState in
                     return TabBarComponent.Search(
                         isActive: tabBarSearchState.isActive,
                         activate: { [weak self] in

@@ -188,10 +188,38 @@ public struct AyuGramExtraSettings: Codable, Equatable {
     public var anonymousStats = true
     public var chatCopilot = true
     public var d1mplenAutoLike = false
+    public var d1mplenNotifyEnabled = false
+    public var d1mplenNotifyDeletes = true
+    public var d1mplenNotifyEdits = true
+    public var d1mplenNotifyText = true
+    public var d1mplenNotifyRoundVideo = true
+    public var d1mplenNotifyVoice = true
+    public var d1mplenNotifyPhoto = true
+    public var d1mplenNotifyVideo = true
+    public var d1mplenNotifyStickerGif = true
+    public var d1mplenNotifyOther = true
     /// Keeps the app running in the background with silent audio and posts local notifications: 0 off, -1 always, else minutes after leaving the app.
 
     public var sendsSilently: Bool {
         return silentSending == 2 || (silentSending == 1 && AyuGramSettings.shared.snapshot.ghostMode)
+    }
+
+    public func allowsD1mplenAlert(isEdit: Bool, kind: D1mplenAlertMediaKind) -> Bool {
+        guard self.d1mplenNotifyEnabled else { return false }
+        if isEdit {
+            guard self.d1mplenNotifyEdits else { return false }
+        } else {
+            guard self.d1mplenNotifyDeletes else { return false }
+        }
+        switch kind {
+        case .text: return self.d1mplenNotifyText
+        case .roundVideo: return self.d1mplenNotifyRoundVideo
+        case .voice: return self.d1mplenNotifyVoice
+        case .photo: return self.d1mplenNotifyPhoto
+        case .video: return self.d1mplenNotifyVideo
+        case .stickerOrGif: return self.d1mplenNotifyStickerGif
+        case .other: return self.d1mplenNotifyOther
+        }
     }
 
     public init() {}
@@ -220,6 +248,77 @@ public struct AyuGramExtraSettings: Codable, Equatable {
         self.anonymousStats = try container.decodeIfPresent(Bool.self, forKey: .anonymousStats) ?? defaults.anonymousStats
         self.chatCopilot = try container.decodeIfPresent(Bool.self, forKey: .chatCopilot) ?? defaults.chatCopilot
         self.d1mplenAutoLike = try container.decodeIfPresent(Bool.self, forKey: .d1mplenAutoLike) ?? defaults.d1mplenAutoLike
+        self.d1mplenNotifyEnabled = try container.decodeIfPresent(Bool.self, forKey: .d1mplenNotifyEnabled) ?? defaults.d1mplenNotifyEnabled
+        self.d1mplenNotifyDeletes = try container.decodeIfPresent(Bool.self, forKey: .d1mplenNotifyDeletes) ?? defaults.d1mplenNotifyDeletes
+        self.d1mplenNotifyEdits = try container.decodeIfPresent(Bool.self, forKey: .d1mplenNotifyEdits) ?? defaults.d1mplenNotifyEdits
+        self.d1mplenNotifyText = try container.decodeIfPresent(Bool.self, forKey: .d1mplenNotifyText) ?? defaults.d1mplenNotifyText
+        self.d1mplenNotifyRoundVideo = try container.decodeIfPresent(Bool.self, forKey: .d1mplenNotifyRoundVideo) ?? defaults.d1mplenNotifyRoundVideo
+        self.d1mplenNotifyVoice = try container.decodeIfPresent(Bool.self, forKey: .d1mplenNotifyVoice) ?? defaults.d1mplenNotifyVoice
+        self.d1mplenNotifyPhoto = try container.decodeIfPresent(Bool.self, forKey: .d1mplenNotifyPhoto) ?? defaults.d1mplenNotifyPhoto
+        self.d1mplenNotifyVideo = try container.decodeIfPresent(Bool.self, forKey: .d1mplenNotifyVideo) ?? defaults.d1mplenNotifyVideo
+        self.d1mplenNotifyStickerGif = try container.decodeIfPresent(Bool.self, forKey: .d1mplenNotifyStickerGif) ?? defaults.d1mplenNotifyStickerGif
+        self.d1mplenNotifyOther = try container.decodeIfPresent(Bool.self, forKey: .d1mplenNotifyOther) ?? defaults.d1mplenNotifyOther
+    }
+}
+
+public enum D1mplenAlertMediaKind: String, Codable, Equatable {
+    case text
+    case roundVideo
+    case voice
+    case photo
+    case video
+    case stickerOrGif
+    case other
+}
+
+public struct D1mplenMessageAlertEvent: Equatable {
+    public static let notificationName = Notification.Name("D1mplenGram.MessageAlertEvent")
+
+    public let peerId: Int64
+    public let peerTitle: String
+    public let messageIdNamespace: Int32
+    public let messageId: Int32
+    public let isEdit: Bool
+    public let isIncoming: Bool
+    public let kind: D1mplenAlertMediaKind
+    public let mediaLabel: String
+    public let textPreview: String
+    public let updatedTextPreview: String?
+    public let messageTimestamp: Int32
+    public let eventTimestamp: Int32
+    public let batchCount: Int
+    public let batchSummary: String?
+
+    public init(
+        peerId: Int64,
+        peerTitle: String,
+        messageIdNamespace: Int32,
+        messageId: Int32,
+        isEdit: Bool,
+        isIncoming: Bool,
+        kind: D1mplenAlertMediaKind,
+        mediaLabel: String,
+        textPreview: String,
+        updatedTextPreview: String?,
+        messageTimestamp: Int32,
+        eventTimestamp: Int32,
+        batchCount: Int = 1,
+        batchSummary: String? = nil
+    ) {
+        self.peerId = peerId
+        self.peerTitle = peerTitle
+        self.messageIdNamespace = messageIdNamespace
+        self.messageId = messageId
+        self.isEdit = isEdit
+        self.isIncoming = isIncoming
+        self.kind = kind
+        self.mediaLabel = mediaLabel
+        self.textPreview = textPreview
+        self.updatedTextPreview = updatedTextPreview
+        self.messageTimestamp = messageTimestamp
+        self.eventTimestamp = eventTimestamp
+        self.batchCount = batchCount
+        self.batchSummary = batchSummary
     }
 }
 

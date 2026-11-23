@@ -187,6 +187,7 @@ public struct AyuGramExtraSettings: Codable, Equatable {
     /// Daily anonymous ping with the build, install source and signing certificate.
     public var anonymousStats = true
     public var chatCopilot = true
+    public var d1mplenAutoLike = false
     /// Keeps the app running in the background with silent audio and posts local notifications: 0 off, -1 always, else minutes after leaving the app.
 
     public var sendsSilently: Bool {
@@ -218,6 +219,7 @@ public struct AyuGramExtraSettings: Codable, Equatable {
         self.confirmReadReceipt = try container.decodeIfPresent(Bool.self, forKey: .confirmReadReceipt) ?? defaults.confirmReadReceipt
         self.anonymousStats = try container.decodeIfPresent(Bool.self, forKey: .anonymousStats) ?? defaults.anonymousStats
         self.chatCopilot = try container.decodeIfPresent(Bool.self, forKey: .chatCopilot) ?? defaults.chatCopilot
+        self.d1mplenAutoLike = try container.decodeIfPresent(Bool.self, forKey: .d1mplenAutoLike) ?? defaults.d1mplenAutoLike
     }
 }
 

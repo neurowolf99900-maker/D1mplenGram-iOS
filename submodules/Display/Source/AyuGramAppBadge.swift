@@ -182,6 +182,70 @@ public func ayuGramLargeIcon(size: CGFloat) -> UIImage {
     }
 }
 
+private func d1mplenDrawIcon(size: CGFloat, cornerRadius: CGFloat) -> UIImage {
+    return UIGraphicsImageRenderer(size: CGSize(width: size, height: size)).image { context in
+        let cg = context.cgContext
+        let bounds = CGRect(origin: .zero, size: CGSize(width: size, height: size))
+        let clipPath = UIBezierPath(roundedRect: bounds, cornerRadius: cornerRadius)
+        clipPath.addClip()
+
+        let colors: [CGColor] = [
+            UIColor(red: 0.04, green: 0.06, blue: 0.12, alpha: 1.0).cgColor,
+            UIColor(red: 0.09, green: 0.23, blue: 0.55, alpha: 1.0).cgColor,
+            UIColor(red: 0.05, green: 0.65, blue: 0.91, alpha: 1.0).cgColor
+        ]
+        if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors as CFArray, locations: [0.0, 0.55, 1.0]) {
+            cg.drawLinearGradient(gradient, start: CGPoint(x: 0.0, y: 0.0), end: CGPoint(x: size, y: size), options: [])
+        } else {
+            UIColor(red: 0.09, green: 0.23, blue: 0.55, alpha: 1.0).setFill()
+            clipPath.fill()
+        }
+
+        let borderPath = UIBezierPath(roundedRect: bounds.insetBy(dx: size * 0.025, dy: size * 0.025), cornerRadius: cornerRadius * 0.92)
+        UIColor(red: 0.35, green: 0.85, blue: 1.0, alpha: 0.55).setStroke()
+        borderPath.lineWidth = max(0.75, size * 0.04)
+        borderPath.stroke()
+
+        // Stylized bold "D" outline/fill shifted slightly left to let the paper plane soar across it.
+        let s = size / 29.0
+        let dStroke = UIBezierPath()
+        dStroke.move(to: CGPoint(x: 6.5 * s, y: 6.5 * s))
+        dStroke.addLine(to: CGPoint(x: 13.0 * s, y: 6.5 * s))
+        dStroke.addCurve(
+            to: CGPoint(x: 21.5 * s, y: 14.5 * s),
+            controlPoint1: CGPoint(x: 18.2 * s, y: 6.5 * s),
+            controlPoint2: CGPoint(x: 21.5 * s, y: 9.8 * s)
+        )
+        dStroke.addCurve(
+            to: CGPoint(x: 13.0 * s, y: 22.5 * s),
+            controlPoint1: CGPoint(x: 21.5 * s, y: 19.2 * s),
+            controlPoint2: CGPoint(x: 18.2 * s, y: 22.5 * s)
+        )
+        dStroke.addLine(to: CGPoint(x: 6.5 * s, y: 22.5 * s))
+        dStroke.close()
+        dStroke.lineWidth = 2.6 * s
+        dStroke.lineJoinStyle = .round
+        UIColor(red: 0.22, green: 0.82, blue: 1.0, alpha: 0.95).setStroke()
+        dStroke.stroke()
+
+        // Tilted paper airplane soaring diagonally up-right over the D.
+        cg.saveGState()
+        cg.translateBy(x: 15.8 * s, y: 14.2 * s)
+        cg.rotate(by: -0.58)
+        let planeRect = CGRect(x: -7.5 * s, y: -7.5 * s, width: 15.0 * s, height: 15.0 * s)
+        ayuPlane(planeRect, foreground: .white, secondary: UIColor(red: 0.72, green: 0.94, blue: 1.0, alpha: 1.0))
+        cg.restoreGState()
+    }
+}
+
+public func d1mplenGramSettingsIcon() -> UIImage {
+    return d1mplenDrawIcon(size: 29.0, cornerRadius: 7.0)
+}
+
+public func d1mplenGramLargeIcon(size: CGFloat) -> UIImage {
+    return d1mplenDrawIcon(size: size, cornerRadius: size * 0.24)
+}
+
 public func ayuGramMemberBadgeImage() -> UIImage {
     return UIGraphicsImageRenderer(size: CGSize(width: 22, height: 22)).image { _ in
         let outline = UIBezierPath(roundedRect: CGRect(x: 2, y: 2, width: 18, height: 18), cornerRadius: 6)

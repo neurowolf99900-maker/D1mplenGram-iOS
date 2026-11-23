@@ -171,6 +171,7 @@ enum PeerInfoContextSubject {
 
 enum PeerInfoSettingsSection {
     case ayuGramPrivacy
+    case d1mplenGram
     case swiftgram
     case swiftgramPro
     case avatar

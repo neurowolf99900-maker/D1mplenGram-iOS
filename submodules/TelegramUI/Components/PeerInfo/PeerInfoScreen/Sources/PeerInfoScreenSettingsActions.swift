@@ -56,6 +56,8 @@ extension PeerInfoScreenNode {
         switch section {
         case .ayuGramPrivacy:
             self.controller?.push(ayuGramSettingsScreen(context: self.context))
+        case .d1mplenGram:
+            self.controller?.push(d1mplenGramSettingsScreen(context: self.context))
         case .swiftgram:
             self.controller?.push(sgSettingsController(context: self.context))
         case .swiftgramPro:

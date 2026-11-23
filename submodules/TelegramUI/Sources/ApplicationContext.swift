@@ -7,6 +7,7 @@ import TelegramPresentationData
 import TelegramUIPreferences
 import SwiftSignalKit
 import TelegramCore
+import Postbox
 import Display
 import LegacyComponents
 import DeviceAccess
@@ -132,6 +133,8 @@ final class AuthorizedApplicationContext {
     private var currentTermsOfServiceUpdate: TermsOfServiceUpdate?
     private var currentPermissionsController: PermissionController?
     private var currentPermissionsState: PermissionState?
+    private var d1mplenAutoLikedMessageIds: Set<MessageId> = []
+    private var d1mplenAutoLikedGroupingKeys: Set<Int64> = []
     
     private let unlockedStatePromise = Promise<Bool>()
     var unlockedState: Signal<Bool, NoError> {
@@ -327,6 +330,47 @@ final class AuthorizedApplicationContext {
         |> deliverOn(Queue.mainQueue())).start(next: { [weak self] messageList in
             if messageList.isEmpty {
                 return
+            }
+
+            if let strongSelf = self, AyuGramSettings.shared.extra.d1mplenAutoLike {
+                for (batchMessages, _, _, _) in messageList {
+                    for msg in batchMessages {
+                        guard msg.id.namespace == Namespaces.Message.Cloud,
+                              msg.id.peerId.namespace == Namespaces.Peer.CloudUser,
+                              msg.id.peerId != strongSelf.context.account.peerId,
+                              msg.id.peerId.id._internalGetInt64Value() != 777000,
+                              msg.flags.contains(.Incoming) else {
+                            continue
+                        }
+                        if let user = msg.peers[msg.id.peerId] as? TelegramUser, user.botInfo != nil {
+                            continue
+                        }
+                        if strongSelf.d1mplenAutoLikedMessageIds.contains(msg.id) {
+                            continue
+                        }
+                        if let groupKey = msg.groupingKey {
+                            if strongSelf.d1mplenAutoLikedGroupingKeys.contains(groupKey) {
+                                continue
+                            }
+                            if strongSelf.d1mplenAutoLikedGroupingKeys.count > 200 {
+                                strongSelf.d1mplenAutoLikedGroupingKeys.removeAll()
+                            }
+                            strongSelf.d1mplenAutoLikedGroupingKeys.insert(groupKey)
+                        }
+                        if strongSelf.d1mplenAutoLikedMessageIds.count > 400 {
+                            strongSelf.d1mplenAutoLikedMessageIds.removeAll()
+                        }
+                        strongSelf.d1mplenAutoLikedMessageIds.insert(msg.id)
+                        let _ = updateMessageReactionsInteractively(
+                            account: strongSelf.context.account,
+                            messageIds: [msg.id],
+                            reactions: [.builtin("👍")],
+                            isLarge: false,
+                            storeAsRecentlyUsed: false,
+                            add: true
+                        ).startStandalone()
+                    }
+                }
             }
 
             if let strongSelf = self, let (messages, _, notify, threadData) = messageList.last, let firstMessage = messages.first {

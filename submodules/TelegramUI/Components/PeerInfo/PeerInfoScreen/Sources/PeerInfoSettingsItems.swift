@@ -248,6 +248,10 @@ func settingsItems(showProfileId: Bool, data: PeerInfoScreenData?, context: Acco
         interaction.openSettings(.ayuGramPrivacy)
     }))
 
+    items[.swiftgram]!.append(PeerInfoScreenDisclosureItem(id: 3, text: "D1mplenGram", icon: d1mplenGramSettingsIcon(), action: {
+        interaction.openSettings(.d1mplenGram)
+    }))
+
     var appIndex = 1000
     if let settings = data.globalSettings {
         for bot in settings.bots {

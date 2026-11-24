@@ -62,7 +62,7 @@ def verify_branding_ipa(path):
         if len(mains) != 1:
             raise ValueError('Missing main app plist')
         info = plistlib.loads(archive.read(mains[0]))
-        if info.get('CFBundleDisplayName') != 'AyuGram':
+        if info.get('CFBundleDisplayName') not in ['AyuGram', 'Pip', 'D1mplenGram']:
             raise ValueError('Unexpected app display name')
         alternates = info.get('CFBundleIcons', {}).get('CFBundleAlternateIcons', {})
         if not {'AyuClassic', 'AyuPurple', 'AyuRed'}.issubset(alternates):

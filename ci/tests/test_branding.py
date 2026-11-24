@@ -50,7 +50,7 @@ class BrandingArtifactTests(unittest.TestCase):
     def test_wrong_display_name_fails_delivery(self):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaisesRegex(ValueError, 'display name'):
-                branding.verify_branding_ipa(self.ipa(Path(tmp) / 'app.ipa', name='Swiftgram'))
+                branding.verify_branding_ipa(self.ipa(Path(tmp) / 'app.ipa', name='UnknownApp'))
 
     def test_declared_but_missing_icon_images_fail_delivery(self):
         with tempfile.TemporaryDirectory() as tmp:

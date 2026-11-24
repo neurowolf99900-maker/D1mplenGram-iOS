@@ -124,16 +124,16 @@ private func ayuScreenEntries(data: PresentationData, privacy: AyuGramPrivacySet
     let ghost = privacy.ghostMode
     var entries: [AyuScreenEntry] = []
 
-    entries.append(.hero(id: 0, title: "AyuGram", status: s(ghost ? "Ayu.HeroGhostOn" : "Ayu.HeroGhostOff"), detail: i18n("Ayu.HeroHidden", locale, "\(hiddenCount)", "\(hidden.count)"), active: ghost || hiddenCount > 0))
+    entries.append(.hero(id: 0, title: "Pip", status: s(ghost ? "Ayu.HeroGhostOn" : "Ayu.HeroGhostOff"), detail: i18n("Ayu.HeroHidden", locale, "\(hiddenCount)", "\(hidden.count)"), active: ghost || hiddenCount > 0))
     if let update {
         entries.append(.link(id: 50, section: .update, link: .update, symbol: "arrow.down.circle.fill", tint: .green, title: s("Ayu.UpdateAvailable") + " · " + update.version, label: ""))
     }
 
-    entries.append(.header(id: 100, section: .ghost, text: s("Ayu.Ghost")))
+    entries.append(.header(id: 100, section: .ghost, text: "ФУНКЦИИ PIP: СТЕЛС & ПРИЗРАК"))
     entries.append(.toggle(id: 110, section: .ghost, key: .ghost, symbol: "eye.slash.fill", tint: .purple, title: s("Ayu.Ghost"), subtitle: s("Ayu.GhostSubtitle"), value: ghost, enabled: true))
     entries.append(.footer(id: 120, section: .ghost, text: s("Ayu.GhostFooter")))
 
-    entries.append(.header(id: 200, section: .hide, text: s("Ayu.HideSection")))
+    entries.append(.header(id: 200, section: .hide, text: "СКРЫТИЕ АКТИВНОСТИ"))
     entries.append(.toggle(id: 210, section: .hide, key: .read, symbol: "checkmark.circle.fill", tint: .blue, title: s("Ayu.HideRead"), subtitle: nil, value: privacy.suppressRead, enabled: !ghost))
     entries.append(.toggle(id: 220, section: .hide, key: .online, symbol: "wifi.slash", tint: .green, title: s("Ayu.HideOnline"), subtitle: nil, value: privacy.suppressOnline, enabled: !ghost))
     entries.append(.toggle(id: 230, section: .hide, key: .typing, symbol: "keyboard", tint: .teal, title: s("Ayu.HideTyping"), subtitle: nil, value: privacy.suppressTyping, enabled: !ghost))
@@ -141,7 +141,7 @@ private func ayuScreenEntries(data: PresentationData, privacy: AyuGramPrivacySet
     entries.append(.toggle(id: 250, section: .hide, key: .uploading, symbol: "icloud.and.arrow.up.fill", tint: .indigo, title: s("Ayu.HideUploading"), subtitle: nil, value: privacy.suppressUploading, enabled: !ghost))
     entries.append(.toggle(id: 260, section: .hide, key: .stories, symbol: "camera.circle.fill", tint: .pink, title: s("Ayu.HideStories"), subtitle: nil, value: privacy.suppressStoryViews, enabled: !ghost))
 
-    entries.append(.header(id: 300, section: .behavior, text: s("Ayu.BehaviorSection")))
+    entries.append(.header(id: 300, section: .behavior, text: "ПОВЕДЕНИЕ & ЧТЕНИЕ"))
     entries.append(.toggle(id: 310, section: .behavior, key: .offlineAfterSending, symbol: "moon.fill", tint: .indigo, title: s("Ayu.OfflineAfterSending"), subtitle: s("Ayu.OfflineAfterSendingInfo"), value: extra.offlineAfterSending, enabled: true))
     entries.append(.toggle(id: 320, section: .behavior, key: .readOnSend, symbol: "arrowshape.turn.up.left.fill", tint: .blue, title: s("Ayu.ReadOnSend"), subtitle: s("Ayu.ReadOnSendInfo"), value: extra.readOnSend, enabled: true))
     entries.append(.toggle(id: 330, section: .behavior, key: .quickToggle, symbol: "hand.tap.fill", tint: .orange, title: s("Ayu.QuickToggle"), subtitle: nil, value: extra.ghostQuickToggle, enabled: true))
@@ -151,7 +151,7 @@ private func ayuScreenEntries(data: PresentationData, privacy: AyuGramPrivacySet
     entries.append(.toggle(id: 360, section: .behavior, key: .scheduleInGhost, symbol: "clock.badge.checkmark.fill", tint: .teal, title: s("Ayu.ScheduleInGhost"), subtitle: s("Ayu.ScheduleInGhostInfo"), value: extra.scheduleInGhost, enabled: true))
     entries.append(.toggle(id: 370, section: .behavior, key: .confirmRead, symbol: "checkmark.bubble.fill", tint: .blue, title: s("Ayu.ConfirmReadReceipt"), subtitle: nil, value: extra.confirmReadReceipt, enabled: true))
 
-    entries.append(.header(id: 400, section: .content, text: s("Ayu.ContentSection")))
+    entries.append(.header(id: 400, section: .content, text: "СНЯТИЕ ЗАЩИТЫ С МЕДИА"))
     entries.append(.toggle(id: 410, section: .content, key: .ignoreProtection, symbol: "lock.open.fill", tint: .orange, title: s("Ayu.IgnoreProtection"), subtitle: s("Ayu.IgnoreProtectionInfo"), value: extra.ignoreCopyProtection, enabled: true))
     entries.append(.toggle(id: 420, section: .content, key: .screenshots, symbol: "camera.fill", tint: .gray, title: s("Ayu.AllowScreenshots"), subtitle: s("Ayu.AllowScreenshotsInfo"), value: extra.allowScreenshots, enabled: true))
     entries.append(.footer(id: 430, section: .content, text: s("Ayu.ContentFooter")))
@@ -191,7 +191,7 @@ private func ayuScreenEntries(data: PresentationData, privacy: AyuGramPrivacySet
     entries.append(.link(id: 585, section: .video, link: .video, symbol: "video.fill", tint: .orange, title: s("Ayu.Video.Title"), label: ""))
     entries.append(.footer(id: 590, section: .video, text: s("Ayu.Video.SectionFooter")))
 
-    entries.append(.header(id: 600, section: .client, text: s("Ayu.ClientSection")))
+    entries.append(.header(id: 600, section: .client, text: "СИСТЕМА & КЛИЕНТ PIP"))
     entries.append(.link(id: 605, section: .client, link: .supporter, symbol: "heart.circle.fill", tint: .red, title: s("Ayu.SupporterBadge"), label: ""))
     entries.append(.toggle(id: 610, section: .client, key: .premium, symbol: "star.fill", tint: .purple, title: s("Ayu.LocalPremium"), subtitle: s("Ayu.LocalPremiumInfo"), value: client.localPremium, enabled: true))
     entries.append(.link(id: 617, section: .client, link: .profileExtras, symbol: "person.crop.circle.badge.plus", tint: .blue, title: s("Ayu.ProfileExtras.Title"), label: ""))
@@ -208,15 +208,13 @@ private func ayuScreenEntries(data: PresentationData, privacy: AyuGramPrivacySet
     entries.append(.toggle(id: 693, section: .security, key: .anonymousStats, symbol: "chart.bar.fill", tint: .indigo, title: s("Ayu.AnonymousStats"), subtitle: nil, value: extra.anonymousStats, enabled: true))
     entries.append(.footer(id: 694, section: .security, text: s("Ayu.AnonymousStatsInfo")))
 
-    entries.append(.header(id: 700, section: .support, text: s("Ayu.SupportSection")))
+    entries.append(.header(id: 700, section: .support, text: "ПОДДЕРЖКА & ОБНОВЛЕНИЯ PIP"))
     entries.append(.link(id: 710, section: .support, link: .channel, symbol: "paperplane.fill", tint: .blue, title: s("Ayu.SupportChannel"), label: ""))
     entries.append(.link(id: 720, section: .support, link: .developer, symbol: "person.crop.circle.fill", tint: .purple, title: s("Ayu.SupportDeveloper"), label: ""))
     entries.append(.link(id: 730, section: .support, link: .sessionLog, symbol: "doc.text.fill", tint: .gray, title: s("Ayu.SessionLog"), label: ""))
     entries.append(.link(id: 740, section: .support, link: .checkUpdates, symbol: "arrow.triangle.2.circlepath", tint: .gray, title: s("Ayu.CheckUpdates"), label: ""))
 
-    entries.append(.header(id: 800, section: .donate, text: s("Ayu.DonateSection")))
-    entries.append(.link(id: 810, section: .donate, link: .donate, symbol: "heart.fill", tint: .pink, title: s("Ayu.Donate"), label: ""))
-    entries.append(.footer(id: 820, section: .donate, text: s("Ayu.DonateFooter")))
+// Donate removed for Pip
     return entries
 }
 
@@ -310,7 +308,7 @@ public func ayuGramSettingsScreen(context: AccountContext) -> ViewController {
         case .channel:
             ayuGramOpenLink(context: context, url: AyuGramUpdates.channelURL)
         case .donate:
-            pushController?(ayuGramDonateController(context: context))
+            break
         case .developer:
             ayuGramOpenDeveloper(context: context)
         case .sessionLog:
@@ -425,7 +423,7 @@ public func ayuGramSettingsScreen(context: AccountContext) -> ViewController {
     |> map { data, _ -> (ItemListControllerState, (ItemListNodeState, AyuScreenArguments)) in
         let settings = AyuGramSettings.shared
         let entries = ayuScreenEntries(data: data, privacy: settings.snapshot, extra: settings.extra, client: settings.client, hasAppearance: hasAppearance, update: AyuGramUpdates.shared.availableUpdate)
-        let state = ItemListControllerState(presentationData: ItemListPresentationData(data), title: .text("AyuGram"), leftNavigationButton: nil, rightNavigationButton: nil, backNavigationButton: ItemListBackButton(title: data.strings.Common_Back))
+        let state = ItemListControllerState(presentationData: ItemListPresentationData(data), title: .text("Pip"), leftNavigationButton: nil, rightNavigationButton: nil, backNavigationButton: ItemListBackButton(title: data.strings.Common_Back))
         let listState = ItemListNodeState(presentationData: ItemListPresentationData(data), entries: entries, style: .blocks, animateChanges: true)
         return (state, (listState, arguments))
     }

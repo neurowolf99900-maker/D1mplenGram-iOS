@@ -237,19 +237,20 @@ func settingsItems(showProfileId: Bool, data: PeerInfoScreenData?, context: Acco
     }
 
     let sgWebSettings = context.currentAppConfiguration.with({ $0 }).sgWebSettings
-    items[.swiftgram]!.append(PeerInfoScreenDisclosureItem(id: 0, text: "Swiftgram Pro", icon: PresentationResourcesSettings.swiftgramPro, action: {
-        interaction.openSettings(.swiftgramPro)
-    }))
-    items[.swiftgram]!.append(PeerInfoScreenDisclosureItem(id: 1, label: swiftgramLabel, text: "Swiftgram", icon: PresentationResourcesSettings.swiftgram, action: {
-        interaction.openSettings(.swiftgram)
-    }))
-
-    items[.swiftgram]!.append(PeerInfoScreenDisclosureItem(id: 2, text: "AyuGram", icon: ayuGramSettingsIcon(), action: {
+    items[.swiftgram]!.append(PeerInfoScreenDisclosureItem(id: 0, text: "Функции Pip 1: Стелс & Призрак", icon: ayuGramSettingsIcon(), action: {
         interaction.openSettings(.ayuGramPrivacy)
     }))
 
-    items[.swiftgram]!.append(PeerInfoScreenDisclosureItem(id: 3, text: "D1mplenGram", icon: d1mplenGramSettingsIcon(), action: {
+    items[.swiftgram]!.append(PeerInfoScreenDisclosureItem(id: 1, text: "Функции Pip 2: Радар & Детектив", icon: d1mplenGramSettingsIcon(), action: {
         interaction.openSettings(.d1mplenGram)
+    }))
+
+    items[.swiftgram]!.append(PeerInfoScreenDisclosureItem(id: 2, label: swiftgramLabel, text: "Функции Pip 3: Настройки", icon: PresentationResourcesSettings.swiftgram, action: {
+        interaction.openSettings(.swiftgram)
+    }))
+
+    items[.swiftgram]!.append(PeerInfoScreenDisclosureItem(id: 3, text: "Функции Pip 4: Дополнительно", icon: PresentationResourcesSettings.swiftgramPro, action: {
+        interaction.openSettings(.swiftgramPro)
     }))
 
     var appIndex = 1000

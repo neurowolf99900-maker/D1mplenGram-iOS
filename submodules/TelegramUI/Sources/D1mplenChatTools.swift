@@ -803,7 +803,7 @@ extension ChatControllerImpl {
                     sheet?.dismissAnimated()
                     guard let self else { return }
                     D1mplenTrackerStore.shared.addOrUpdateContact(peerId: rawPeerId, displayName: displayName, username: username)
-                    self.d1mplenShowToast("Контакт добавлен в радар D1mplenGram")
+                    self.d1mplenShowToast("Контакт добавлен в радар Pip")
                     self.chatDisplayNode.d1mplenRefreshButton()
                 }))
             }
@@ -875,8 +875,14 @@ extension ChatControllerImpl {
             }))
         }
 
+        mainItems.append(ActionSheetButtonItem(title: "🧠 ИИ-Поиск чата по смыслу", color: .accent, action: { [weak self, weak sheet] in
+            sheet?.dismissAnimated()
+            guard let self else { return }
+            self.push(pipSemanticChatFinderController(context: self.context))
+        }))
+
         let settingsGroup = ActionSheetItemGroup(items: [
-            ActionSheetButtonItem(title: "⚙️ Настройки D1mplenGram", color: .accent, action: { [weak self, weak sheet] in
+            ActionSheetButtonItem(title: "⚙️ Настройки Pip Tools", color: .accent, action: { [weak self, weak sheet] in
                 sheet?.dismissAnimated()
                 guard let self else { return }
                 self.push(d1mplenGramSettingsScreen(context: self.context))

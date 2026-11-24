@@ -48,6 +48,8 @@ private enum D1mplenScreenToggle: Equatable {
 private enum D1mplenScreenAction: Equatable {
     case openTracker
     case setupBark
+    case openCrossRadar
+    case openAiChatFinder
 }
 
 private final class D1mplenScreenArguments {
@@ -120,7 +122,7 @@ private func d1mplenScreenEntries(
 ) -> [D1mplenScreenEntry] {
     var entries: [D1mplenScreenEntry] = []
 
-    entries.append(.header(id: 100, section: .features, text: "D1MPLENGRAM"))
+    entries.append(.header(id: 100, section: .features, text: "ФУНКЦИИ PIP: АВТОМАТИЗАЦИЯ"))
     entries.append(.toggle(
         id: 110,
         section: .features,
@@ -147,7 +149,7 @@ private func d1mplenScreenEntries(
         text: "Авто-лайк срабатывает только в личных чатах на входящие сообщения от людей (боты и каналы игнорируются). Кнопка поиска (лупа) остаётся видимой на всех вкладках, включая Настройки."
     ))
 
-    entries.append(.header(id: 150, section: .tracker, text: "РАДАР И АНАЛИТИКА КОНТАКТОВ"))
+    entries.append(.header(id: 150, section: .tracker, text: "ФУНКЦИИ PIP 2: РАДАР & ДЕТЕКТИВ"))
     entries.append(.disclosure(
         id: 160,
         section: .tracker,
@@ -157,13 +159,31 @@ private func d1mplenScreenEntries(
         title: "Мониторинг контактов и статистика",
         label: trackedCount > 0 ? "\(trackedCount)" : "Выкл"
     ))
+    entries.append(.disclosure(
+        id: 162,
+        section: .tracker,
+        action: .openCrossRadar,
+        symbol: "person.2.wave.2.fill",
+        color: AyuGramRowColor.indigo,
+        title: "Синхронный радар онлайна",
+        label: "Cross-Radar"
+    ))
+    entries.append(.disclosure(
+        id: 164,
+        section: .tracker,
+        action: .openAiChatFinder,
+        symbol: "brain.head.profile",
+        color: AyuGramRowColor.purple,
+        title: "ИИ-Поиск чата по смыслу",
+        label: "Llama 3.3"
+    ))
     entries.append(.footer(
         id: 170,
         section: .tracker,
         text: "Отслеживание онлайна/офлайна, набора текста и записи кружков/ГС, смены аватарки/имени/Bio и подробная статистика активности по выбранным людям."
     ))
 
-    entries.append(.header(id: 180, section: .chatTools, text: "ИНСТРУМЕНТЫ В ЧАТЕ (⚡ D1MPLEN)"))
+    entries.append(.header(id: 180, section: .chatTools, text: "ФУНКЦИИ PIP 3: СПЕЦ-ИНСТРУМЕНТЫ ЧАТА"))
     entries.append(.toggle(
         id: 181,
         section: .chatTools,
@@ -476,6 +496,10 @@ public func d1mplenGramSettingsScreen(context: AccountContext) -> ViewController
         switch action {
         case .openTracker:
             controllerRef?.push(d1mplenTrackerSettingsScreen(context: context))
+        case .openCrossRadar:
+            controllerRef?.push(pipCrossRadarScreen(context: context))
+        case .openAiChatFinder:
+            controllerRef?.push(pipSemanticChatFinderController(context: context))
         case .setupBark:
             ayuGramSetUpBark(context: context, present: { viewController in
                 controllerRef?.present(viewController, in: .window(.root))
@@ -494,7 +518,7 @@ public func d1mplenGramSettingsScreen(context: AccountContext) -> ViewController
         )
         let state = ItemListControllerState(
             presentationData: ItemListPresentationData(data),
-            title: .text("D1mplenGram"),
+            title: .text("Pip Tools"),
             leftNavigationButton: nil,
             rightNavigationButton: nil,
             backNavigationButton: ItemListBackButton(title: data.strings.Common_Back)

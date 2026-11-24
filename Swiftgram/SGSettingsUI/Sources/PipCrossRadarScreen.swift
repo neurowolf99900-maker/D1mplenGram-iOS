@@ -169,7 +169,7 @@ public func pipCrossRadarScreen(context: AccountContext) -> ViewController {
             var items: [ActionSheetItem] = []
             items.append(ActionSheetTextItem(title: "Выберите Объект \(slot)"))
             for rawId in tracked {
-                let name = D1mplenTrackerStore.shared.displayName(for: rawId)
+                let name = D1mplenTrackerStore.shared.contact(for: rawId)?.displayName ?? "Контакт \(rawId)"
                 items.append(ActionSheetButtonItem(title: name, color: .accent, action: { [weak sheet] in
                     sheet?.dismissAnimated()
                     updateState { state in
@@ -203,8 +203,8 @@ public func pipCrossRadarScreen(context: AccountContext) -> ViewController {
     |> map { presentationData, state, _ -> (ItemListControllerState, (ItemListNodeState, Any)) in
         var entries: [PipCrossRadarEntry] = []
 
-        let name1 = state.peerId1.map { D1mplenTrackerStore.shared.displayName(for: $0) } ?? "Нажмите для выбора"
-        let name2 = state.peerId2.map { D1mplenTrackerStore.shared.displayName(for: $0) } ?? "Нажмите для выбора"
+        let name1 = state.peerId1.flatMap { D1mplenTrackerStore.shared.contact(for: $0)?.displayName } ?? "Нажмите для выбора"
+        let name2 = state.peerId2.flatMap { D1mplenTrackerStore.shared.contact(for: $0)?.displayName } ?? "Нажмите для выбора"
 
         entries.append(.header(id: 100, section: .targets, text: "ЦЕЛИ ДЛЯ ПЕРЕКРЕСТНОГО АНАЛИЗА"))
         entries.append(.contactPicker(id: 110, slot: 1, name: name1, isSelected: state.peerId1 != nil))

@@ -140,10 +140,22 @@ private final class PipFinderArguments {
     }
 }
 
-private struct PipFinderState {
+private struct PipFinderMatch: Equatable {
+    let peerId: EnginePeer.Id
+    let peer: EnginePeer?
+    let title: String
+    let username: String?
+    let reason: String
+
+    static func == (lhs: PipFinderMatch, rhs: PipFinderMatch) -> Bool {
+        return lhs.peerId == rhs.peerId && lhs.title == rhs.title && lhs.username == rhs.username && lhs.reason == rhs.reason
+    }
+}
+
+private struct PipFinderState: Equatable {
     var query: String = ""
     var inProgress: Bool = false
-    var match: (peerId: EnginePeer.Id, peer: EnginePeer?, title: String, username: String?, reason: String)? = nil
+    var match: PipFinderMatch? = nil
     var hasSearched: Bool = false
 }
 
@@ -248,7 +260,7 @@ public func pipSemanticChatFinderController(context: AccountContext) -> ViewCont
 
                             if matchedId != 0, let cand = candidates.first(where: { $0.peerId.toInt64() == matchedId }) {
                                 let peerObj = peers.first(where: { $0.id == cand.peerId })
-                                state.match = (peerId: cand.peerId, peer: peerObj, title: cand.title, username: cand.username, reason: reasonText)
+                                state.match = PipFinderMatch(peerId: cand.peerId, peer: peerObj, title: cand.title, username: cand.username, reason: reasonText)
                             } else {
                                 state.match = nil
                             }
@@ -262,9 +274,9 @@ public func pipSemanticChatFinderController(context: AccountContext) -> ViewCont
         }
     )
 
-    let signal = combineLatest(context.sharedContext.presentationData, stateValue.get())
+    let signal: Signal<(ItemListControllerState, (ItemListNodeState, Any)), NoError> = combineLatest(context.sharedContext.presentationData, stateValue.get())
     |> deliverOnMainQueue
-    |> map { presentationData, state -> (ItemListControllerState, (ItemListNodeState, PipFinderArguments)) in
+    |> map { presentationData, state -> (ItemListControllerState, (ItemListNodeState, Any)) in
         var entries: [PipFinderEntry] = []
 
         entries.append(.header(id: 100, section: .input, text: "ОПИСАНИЕ ЧАТА ДЛЯ НЕЙРОСЕТИ"))
@@ -304,7 +316,7 @@ public func pipSemanticChatFinderController(context: AccountContext) -> ViewCont
             style: .blocks,
             animateChanges: true
         )
-        return (controllerState, (listState, arguments))
+        return (controllerState, (listState, arguments as Any))
     }
 
     let controller = ItemListController(context: context, state: signal)

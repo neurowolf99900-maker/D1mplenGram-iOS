@@ -5,6 +5,7 @@ import SwiftSignalKit
 import TelegramCore
 import AccountContext
 import TelegramPresentationData
+import PresentationDataUtils
 import ItemListUI
 import SGItemListUI
 import SGSimpleSettings
@@ -117,7 +118,7 @@ private final class PipCrossRadarArguments {
     }
 }
 
-private struct PipCrossRadarState {
+private struct PipCrossRadarState: Equatable {
     var peerId1: Int64?
     var peerId2: Int64?
 }
@@ -151,18 +152,26 @@ public func pipCrossRadarScreen(context: AccountContext) -> ViewController {
 
     let arguments = PipCrossRadarArguments(
         pickContact: { slot in
+            let presentationData = context.sharedContext.currentPresentationData.with { $0 }
             let tracked = D1mplenTrackerStore.shared.trackedPeerIds()
             guard !tracked.isEmpty else {
-                let alert = UIAlertController(title: "Радар пуст", message: "Сначала добавьте людей в мониторинг через профиль контакта (⚡ Отслеживать в Pip).", preferredStyle: .alert)
-                alert.addAction(UIAlertAction(title: "OK", style: .default))
+                let alert = textAlertController(
+                    context: context,
+                    title: "Радар пуст",
+                    text: "Сначала добавьте людей в мониторинг через профиль контакта (⚡ Отслеживать в Pip).",
+                    actions: [TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: {})]
+                )
                 controllerRef?.present(alert, in: .window(.root))
                 return
             }
 
-            let sheet = UIAlertController(title: "Выберите Объект \(slot)", message: nil, preferredStyle: .actionSheet)
+            let sheet = ActionSheetController(presentationData: presentationData)
+            var items: [ActionSheetItem] = []
+            items.append(ActionSheetTextItem(title: "Выберите Объект \(slot)"))
             for rawId in tracked {
                 let name = D1mplenTrackerStore.shared.displayName(for: rawId)
-                sheet.addAction(UIAlertAction(title: name, style: .default, handler: { _ in
+                items.append(ActionSheetButtonItem(title: name, color: .accent, action: { [weak sheet] in
+                    sheet?.dismissAnimated()
                     updateState { state in
                         if slot == 1 {
                             state.peerId1 = rawId
@@ -172,7 +181,10 @@ public func pipCrossRadarScreen(context: AccountContext) -> ViewController {
                     }
                 }))
             }
-            sheet.addAction(UIAlertAction(title: "Отмена", style: .cancel))
+            items.append(ActionSheetButtonItem(title: presentationData.strings.Common_Cancel, color: .accent, action: { [weak sheet] in
+                sheet?.dismissAnimated()
+            }))
+            sheet.setItemGroups([ActionSheetItemGroup(items: items)])
             controllerRef?.present(sheet, in: .window(.root))
         }
     )
@@ -186,9 +198,9 @@ public func pipCrossRadarScreen(context: AccountContext) -> ViewController {
         }
     }
 
-    let signal = combineLatest(context.sharedContext.presentationData, stateValue.get(), changes)
+    let signal: Signal<(ItemListControllerState, (ItemListNodeState, Any)), NoError> = combineLatest(context.sharedContext.presentationData, stateValue.get(), changes)
     |> deliverOnMainQueue
-    |> map { presentationData, state, _ -> (ItemListControllerState, (ItemListNodeState, PipCrossRadarArguments)) in
+    |> map { presentationData, state, _ -> (ItemListControllerState, (ItemListNodeState, Any)) in
         var entries: [PipCrossRadarEntry] = []
 
         let name1 = state.peerId1.map { D1mplenTrackerStore.shared.displayName(for: $0) } ?? "Нажмите для выбора"
@@ -282,7 +294,7 @@ public func pipCrossRadarScreen(context: AccountContext) -> ViewController {
             style: .blocks,
             animateChanges: true
         )
-        return (controllerState, (listState, arguments))
+        return (controllerState, (listState, arguments as Any))
     }
 
     let controller = ItemListController(context: context, state: signal)

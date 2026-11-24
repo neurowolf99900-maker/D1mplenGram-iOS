@@ -2772,6 +2772,7 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
         
         childContentInsets.top = listInsets.bottom
         self.ayuUpdateCopilot(layout: layout, top: childContentInsets.top, bottomInset: childContentInsets.bottom)
+        self.d1mplenUpdateButton(layout: layout, top: childContentInsets.top)
         
         var emptyNodeInsets = insets
         emptyNodeInsets.bottom += inputPanelsHeight
@@ -3989,6 +3990,59 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
         let anchor = CGPoint(x: layout.size.width - layout.safeInsets.right - 10.0, y: top + 6.0)
         let maxHeight = max(160.0, layout.size.height - bottomInset - anchor.y - 10.0)
         copilot.layout(anchor: anchor, buttonSize: size, maxWidth: layout.size.width - layout.safeInsets.left - layout.safeInsets.right - 20.0, maxHeight: maxHeight)
+    }
+
+    private var d1mplenButton: D1mplenChatButtonView?
+
+    func d1mplenRefreshButton() {
+        guard let button = self.d1mplenButton, case let .peer(peerId) = self.chatPresentationInterfaceState.chatLocation else {
+            return
+        }
+        let isActive = D1mplenChatToolsManager.shared.hasActiveTask(for: peerId) || D1mplenTrackerStore.shared.isTracked(peerId.toInt64())
+        button.update(theme: self.chatPresentationInterfaceState.theme, active: isActive)
+    }
+
+    private func d1mplenUpdateButton(layout: ContainerViewLayout, top: CGFloat) {
+        var targetPeerId: EnginePeer.Id?
+        if AyuGramSettings.shared.extra.d1mplenChatMenuEnabled,
+           case .standard(.default) = self.chatPresentationInterfaceState.mode,
+           self.chatPresentationInterfaceState.search == nil,
+           case let .peer(peerId) = self.chatPresentationInterfaceState.chatLocation,
+           peerId != self.context.account.peerId,
+           let peer = self.chatPresentationInterfaceState.renderedPeer?.peer {
+            if let channel = peer as? TelegramChannel, case .broadcast = channel.info {
+                targetPeerId = nil
+            } else {
+                targetPeerId = peerId
+            }
+        }
+        guard let peerId = targetPeerId else {
+            if let button = self.d1mplenButton {
+                self.d1mplenButton = nil
+                button.removeFromSuperview()
+            }
+            return
+        }
+        let button: D1mplenChatButtonView
+        if let current = self.d1mplenButton {
+            button = current
+        } else {
+            button = D1mplenChatButtonView(frame: CGRect(x: 0.0, y: 0.0, width: 40.0, height: 40.0))
+            button.onTap = { [weak self] in
+                self?.controller?.d1mplenPresentChatTools()
+            }
+            self.d1mplenButton = button
+            self.view.addSubview(button)
+        }
+        if button.superview === self.view {
+            self.view.bringSubviewToFront(button)
+        }
+        let isActive = D1mplenChatToolsManager.shared.hasActiveTask(for: peerId) || D1mplenTrackerStore.shared.isTracked(peerId.toInt64())
+        button.update(theme: self.chatPresentationInterfaceState.theme, active: isActive)
+        let size: CGFloat = 40.0
+        let x = layout.size.width - layout.safeInsets.right - 10.0 - size
+        let y = self.ayuCopilot != nil ? (top + 54.0) : (top + 6.0)
+        button.frame = CGRect(x: x, y: y, width: size, height: size)
     }
 
     func updateChatPresentationInterfaceState(_ chatPresentationInterfaceState: ChatPresentationInterfaceState, transition: ContainedViewLayoutTransition, interactive: Bool, forceLayout: Bool, completion: @escaping (ContainedViewLayoutTransition) -> Void) {
@@ -5353,6 +5407,19 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
                 if let rect = self.frameForInputActionButton() {
                     self.interfaceInteraction?.displaySlowmodeTooltip(self.view, rect)
                 }
+                return
+            }
+
+            let composeRaw = effectivePresentationInterfaceState.interfaceState.composeInputState.inputText.string
+            let effectiveRaw = effectivePresentationInterfaceState.interfaceState.effectiveInputState.inputText.string
+            let rawComposeText = (!composeRaw.isEmpty ? composeRaw : effectiveRaw).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !isScheduledMessages && scheduleTime == nil && rawComposeText.hasPrefix("."),
+               let controller = self.controller,
+               controller.d1mplenHandleLocalCommand(rawComposeText, silentPosting: silentPosting ?? false) {
+                self.requestUpdateChatInterfaceState(.immediate, true, { state in
+                    return state.withUpdatedComposeInputState(ChatTextInputState())
+                })
+                completion()
                 return
             }
             

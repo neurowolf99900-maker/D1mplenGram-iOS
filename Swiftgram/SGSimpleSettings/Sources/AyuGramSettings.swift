@@ -198,6 +198,21 @@ public struct AyuGramExtraSettings: Codable, Equatable {
     public var d1mplenNotifyVideo = true
     public var d1mplenNotifyStickerGif = true
     public var d1mplenNotifyOther = true
+    public var d1mplenTrackOnline = true
+    public var d1mplenTrackOffline = false
+    public var d1mplenTrackTyping = true
+    public var d1mplenTrackAvatar = true
+    public var d1mplenTrackProfile = true
+    public var d1mplenChatMenuEnabled = true
+    public var d1mplenVideoToRoundEnabled = true
+    public var d1mplenFakeStatusEnabled = true
+    public var d1mplenMassReactionsEnabled = true
+    public var d1mplenTextAnimEnabled = true
+    public var d1mplenSendWhenOnlineEnabled = true
+    public var d1mplenSelfDestructEnabled = true
+    public var d1mplenCleanMyMessagesEnabled = true
+    public var d1mplenCommandsEnabled = true
+    public var d1mplenTerminatedNotice = true
     /// Keeps the app running in the background with silent audio and posts local notifications: 0 off, -1 always, else minutes after leaving the app.
 
     public var sendsSilently: Bool {
@@ -258,6 +273,21 @@ public struct AyuGramExtraSettings: Codable, Equatable {
         self.d1mplenNotifyVideo = try container.decodeIfPresent(Bool.self, forKey: .d1mplenNotifyVideo) ?? defaults.d1mplenNotifyVideo
         self.d1mplenNotifyStickerGif = try container.decodeIfPresent(Bool.self, forKey: .d1mplenNotifyStickerGif) ?? defaults.d1mplenNotifyStickerGif
         self.d1mplenNotifyOther = try container.decodeIfPresent(Bool.self, forKey: .d1mplenNotifyOther) ?? defaults.d1mplenNotifyOther
+        self.d1mplenTrackOnline = try container.decodeIfPresent(Bool.self, forKey: .d1mplenTrackOnline) ?? defaults.d1mplenTrackOnline
+        self.d1mplenTrackOffline = try container.decodeIfPresent(Bool.self, forKey: .d1mplenTrackOffline) ?? defaults.d1mplenTrackOffline
+        self.d1mplenTrackTyping = try container.decodeIfPresent(Bool.self, forKey: .d1mplenTrackTyping) ?? defaults.d1mplenTrackTyping
+        self.d1mplenTrackAvatar = try container.decodeIfPresent(Bool.self, forKey: .d1mplenTrackAvatar) ?? defaults.d1mplenTrackAvatar
+        self.d1mplenTrackProfile = try container.decodeIfPresent(Bool.self, forKey: .d1mplenTrackProfile) ?? defaults.d1mplenTrackProfile
+        self.d1mplenChatMenuEnabled = try container.decodeIfPresent(Bool.self, forKey: .d1mplenChatMenuEnabled) ?? defaults.d1mplenChatMenuEnabled
+        self.d1mplenVideoToRoundEnabled = try container.decodeIfPresent(Bool.self, forKey: .d1mplenVideoToRoundEnabled) ?? defaults.d1mplenVideoToRoundEnabled
+        self.d1mplenFakeStatusEnabled = try container.decodeIfPresent(Bool.self, forKey: .d1mplenFakeStatusEnabled) ?? defaults.d1mplenFakeStatusEnabled
+        self.d1mplenMassReactionsEnabled = try container.decodeIfPresent(Bool.self, forKey: .d1mplenMassReactionsEnabled) ?? defaults.d1mplenMassReactionsEnabled
+        self.d1mplenTextAnimEnabled = try container.decodeIfPresent(Bool.self, forKey: .d1mplenTextAnimEnabled) ?? defaults.d1mplenTextAnimEnabled
+        self.d1mplenSendWhenOnlineEnabled = try container.decodeIfPresent(Bool.self, forKey: .d1mplenSendWhenOnlineEnabled) ?? defaults.d1mplenSendWhenOnlineEnabled
+        self.d1mplenSelfDestructEnabled = try container.decodeIfPresent(Bool.self, forKey: .d1mplenSelfDestructEnabled) ?? defaults.d1mplenSelfDestructEnabled
+        self.d1mplenCleanMyMessagesEnabled = try container.decodeIfPresent(Bool.self, forKey: .d1mplenCleanMyMessagesEnabled) ?? defaults.d1mplenCleanMyMessagesEnabled
+        self.d1mplenCommandsEnabled = try container.decodeIfPresent(Bool.self, forKey: .d1mplenCommandsEnabled) ?? defaults.d1mplenCommandsEnabled
+        self.d1mplenTerminatedNotice = try container.decodeIfPresent(Bool.self, forKey: .d1mplenTerminatedNotice) ?? defaults.d1mplenTerminatedNotice
     }
 }
 

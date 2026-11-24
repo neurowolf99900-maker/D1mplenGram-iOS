@@ -16,6 +16,15 @@ public struct AyuGramRoundVideoSelection {
     public let thumbnail: UIImage?
 }
 
+public struct AyuGramRoundVideoURLSelection {
+    public let videoURL: URL
+    public let dimensions: CGSize
+    public let cropRect: CGRect
+    public let start: Double
+    public let duration: Double
+    public let thumbnail: UIImage?
+}
+
 private final class AyuGramRoundPlayerView: UIView {
     override class var layerClass: AnyClass {
         return AVPlayerLayer.self
@@ -32,10 +41,11 @@ private func ayuRoundTimeString(_ value: Double) -> String {
 }
 
 final class AyuGramRoundVideoEditorView: UIView {
-    private let asset: PHAsset
+    private let asset: PHAsset?
+    private let videoURL: URL?
     private let locale: String
     private let theme: PresentationTheme
-    private let videoSize: CGSize
+    private var videoSize: CGSize
     private let maximumLength: Double = 60.0
     private let minimumLength: Double = 1.0
 
@@ -70,11 +80,32 @@ final class AyuGramRoundVideoEditorView: UIView {
         return self.avAsset != nil && self.length >= self.minimumLength
     }
 
-    init(asset: PHAsset, theme: PresentationTheme, locale: String) {
+    convenience init(asset: PHAsset, theme: PresentationTheme, locale: String) {
+        self.init(
+            asset: asset,
+            videoURL: nil,
+            initialSize: CGSize(width: max(1, asset.pixelWidth), height: max(1, asset.pixelHeight)),
+            theme: theme,
+            locale: locale
+        )
+    }
+
+    convenience init(videoURL: URL, theme: PresentationTheme, locale: String) {
+        self.init(
+            asset: nil,
+            videoURL: videoURL,
+            initialSize: CGSize(width: 720, height: 720),
+            theme: theme,
+            locale: locale
+        )
+    }
+
+    private init(asset: PHAsset?, videoURL: URL?, initialSize: CGSize, theme: PresentationTheme, locale: String) {
         self.asset = asset
+        self.videoURL = videoURL
         self.theme = theme
         self.locale = locale
-        self.videoSize = CGSize(width: max(1, asset.pixelWidth), height: max(1, asset.pixelHeight))
+        self.videoSize = initialSize
         super.init(frame: CGRect())
 
         self.backgroundColor = .black
@@ -147,33 +178,67 @@ final class AyuGramRoundVideoEditorView: UIView {
     }
 
     private func load() {
-        let options = PHVideoRequestOptions()
-        options.isNetworkAccessAllowed = true
-        options.deliveryMode = .highQualityFormat
-        options.version = .current
-        self.requestId = PHImageManager.default().requestAVAsset(forVideo: self.asset, options: options, resultHandler: { [weak self] avAsset, _, _ in
-            DispatchQueue.main.async {
-                guard let self else {
-                    return
+        if let asset = self.asset {
+            let options = PHVideoRequestOptions()
+            options.isNetworkAccessAllowed = true
+            options.deliveryMode = .highQualityFormat
+            options.version = .current
+            self.requestId = PHImageManager.default().requestAVAsset(forVideo: asset, options: options, resultHandler: { [weak self] avAsset, _, _ in
+                DispatchQueue.main.async {
+                    guard let self else {
+                        return
+                    }
+                    self.requestId = nil
+                    guard let avAsset else {
+                        self.spinner.stopAnimating()
+                        self.hintLabel.text = i18n("Ayu.RoundEditor.Failed", self.locale)
+                        self.setNeedsLayout()
+                        return
+                    }
+                    self.setup(avAsset: avAsset)
                 }
-                self.requestId = nil
-                guard let avAsset else {
-                    self.spinner.stopAnimating()
-                    self.hintLabel.text = i18n("Ayu.RoundEditor.Failed", self.locale)
-                    self.setNeedsLayout()
-                    return
+            })
+        } else if let videoURL = self.videoURL {
+            let avAsset = AVURLAsset(url: videoURL)
+            avAsset.loadValuesAsynchronously(forKeys: ["tracks", "duration", "playable"], completionHandler: { [weak self] in
+                var error: NSError?
+                let tracksStatus = avAsset.statusOfValue(forKey: "tracks", error: &error)
+                let durationStatus = avAsset.statusOfValue(forKey: "duration", error: &error)
+                var resolvedSize: CGSize?
+                if tracksStatus == .loaded, let track = avAsset.tracks(withMediaType: .video).first {
+                    let transformed = track.naturalSize.applying(track.preferredTransform)
+                    let width = abs(transformed.width)
+                    let height = abs(transformed.height)
+                    if width > 0.0 && height > 0.0 {
+                        resolvedSize = CGSize(width: width, height: height)
+                    }
                 }
-                self.setup(avAsset: avAsset)
-            }
-        })
+                let ok = tracksStatus == .loaded && durationStatus == .loaded && resolvedSize != nil && avAsset.duration.seconds > 0.0
+                DispatchQueue.main.async {
+                    guard let self else {
+                        return
+                    }
+                    guard ok, let resolvedSize else {
+                        self.spinner.stopAnimating()
+                        self.hintLabel.text = i18n("Ayu.RoundEditor.Failed", self.locale)
+                        self.setNeedsLayout()
+                        return
+                    }
+                    self.videoSize = resolvedSize
+                    self.setup(avAsset: avAsset)
+                }
+            })
+        }
     }
 
     private func setup(avAsset: AVAsset) {
         self.avAsset = avAsset
         let assetDuration = avAsset.duration.seconds
-        self.duration = assetDuration.isFinite && assetDuration > 0.0 ? assetDuration : self.asset.duration
+        let fallbackDuration = self.asset?.duration ?? 0.0
+        self.duration = assetDuration.isFinite && assetDuration > 0.0 ? assetDuration : fallbackDuration
         self.length = min(self.maximumLength, self.duration)
         self.start = 0.0
+        self.setNeedsLayout()
 
         let player = AVPlayer(playerItem: AVPlayerItem(asset: avAsset))
         player.actionAtItemEnd = .none
@@ -299,7 +364,7 @@ final class AyuGramRoundVideoEditorView: UIView {
         return CGRect(x: x, y: y, width: width, height: height)
     }
 
-    func makeSelection(completion: @escaping (AyuGramRoundVideoSelection?) -> Void) {
+    private func generateSelectionData(completion: @escaping ((cropRect: CGRect, start: Double, duration: Double, dimensions: CGSize, thumbnail: UIImage?)?) -> Void) {
         guard let avAsset = self.avAsset, self.isReady else {
             completion(nil)
             return
@@ -310,7 +375,6 @@ final class AyuGramRoundVideoEditorView: UIView {
         let cropRect = CGRect(x: floor(normalized.minX * self.videoSize.width), y: floor(normalized.minY * self.videoSize.height), width: pixelSide, height: pixelSide)
         let start = self.start
         let length = self.length
-        let asset = self.asset
         let dimensions = self.videoSize
         let generator = AVAssetImageGenerator(asset: avAsset)
         generator.appliesPreferredTrackTransform = true
@@ -329,8 +393,36 @@ final class AyuGramRoundVideoEditorView: UIView {
                 }
             }
             DispatchQueue.main.async {
-                completion(AyuGramRoundVideoSelection(asset: asset, dimensions: dimensions, cropRect: cropRect, start: start, duration: length, thumbnail: thumbnail))
+                completion((cropRect: cropRect, start: start, duration: length, dimensions: dimensions, thumbnail: thumbnail))
             }
+        })
+    }
+
+    func makeSelection(completion: @escaping (AyuGramRoundVideoSelection?) -> Void) {
+        guard let asset = self.asset else {
+            completion(nil)
+            return
+        }
+        self.generateSelectionData(completion: { data in
+            guard let data else {
+                completion(nil)
+                return
+            }
+            completion(AyuGramRoundVideoSelection(asset: asset, dimensions: data.dimensions, cropRect: data.cropRect, start: data.start, duration: data.duration, thumbnail: data.thumbnail))
+        })
+    }
+
+    func makeURLSelection(completion: @escaping (AyuGramRoundVideoURLSelection?) -> Void) {
+        guard let videoURL = self.videoURL else {
+            completion(nil)
+            return
+        }
+        self.generateSelectionData(completion: { data in
+            guard let data else {
+                completion(nil)
+                return
+            }
+            completion(AyuGramRoundVideoURLSelection(videoURL: videoURL, dimensions: data.dimensions, cropRect: data.cropRect, start: data.start, duration: data.duration, thumbnail: data.thumbnail))
         })
     }
 
@@ -369,16 +461,27 @@ final class AyuGramRoundVideoEditorView: UIView {
 }
 
 private final class AyuGramRoundVideoEditorController: AyuGramHostController {
+    enum Mode {
+        case asset(PHAsset, (AyuGramRoundVideoSelection) -> Void)
+        case videoURL(URL, (AyuGramRoundVideoURLSelection) -> Void)
+    }
+
     private let editor: AyuGramRoundVideoEditorView
-    private let completion: (AyuGramRoundVideoSelection) -> Void
+    private let mode: Mode
     private var isSending = false
 
-    init(context: AccountContext, asset: PHAsset, completion: @escaping (AyuGramRoundVideoSelection) -> Void) {
+    init(context: AccountContext, mode: Mode) {
         let presentationData = context.sharedContext.currentPresentationData.with { $0 }
         let locale = presentationData.strings.baseLanguageCode
-        let editor = AyuGramRoundVideoEditorView(asset: asset, theme: presentationData.theme, locale: locale)
+        let editor: AyuGramRoundVideoEditorView
+        switch mode {
+        case let .asset(asset, _):
+            editor = AyuGramRoundVideoEditorView(asset: asset, theme: presentationData.theme, locale: locale)
+        case let .videoURL(url, _):
+            editor = AyuGramRoundVideoEditorView(videoURL: url, theme: presentationData.theme, locale: locale)
+        }
         self.editor = editor
-        self.completion = completion
+        self.mode = mode
         super.init(context: context, title: i18n("Ayu.RoundEditor.Title", locale), content: editor)
         let sendItem = UIBarButtonItem(title: i18n("Ayu.RoundEditor.Send", locale), style: .done, target: self, action: #selector(self.sendPressed))
         sendItem.isEnabled = false
@@ -392,31 +495,55 @@ private final class AyuGramRoundVideoEditorController: AyuGramHostController {
         fatalError("init(coder:) has not been implemented")
     }
 
+    private func finishSending() {
+        if let navigationController = self.navigationController as? NavigationController {
+            navigationController.filterController(self, animated: true)
+        } else {
+            self.dismiss()
+        }
+    }
+
     @objc private func sendPressed() {
         guard !self.isSending, self.editor.isReady else {
             return
         }
         self.isSending = true
         self.navigationItem.rightBarButtonItem?.isEnabled = false
-        self.editor.makeSelection(completion: { [weak self] selection in
-            guard let self else {
-                return
-            }
-            guard let selection else {
-                self.isSending = false
-                self.navigationItem.rightBarButtonItem?.isEnabled = true
-                return
-            }
-            self.completion(selection)
-            if let navigationController = self.navigationController as? NavigationController {
-                navigationController.filterController(self, animated: true)
-            } else {
-                self.dismiss()
-            }
-        })
+        switch self.mode {
+        case let .asset(_, completion):
+            self.editor.makeSelection(completion: { [weak self] selection in
+                guard let self else {
+                    return
+                }
+                guard let selection else {
+                    self.isSending = false
+                    self.navigationItem.rightBarButtonItem?.isEnabled = true
+                    return
+                }
+                completion(selection)
+                self.finishSending()
+            })
+        case let .videoURL(_, completion):
+            self.editor.makeURLSelection(completion: { [weak self] selection in
+                guard let self else {
+                    return
+                }
+                guard let selection else {
+                    self.isSending = false
+                    self.navigationItem.rightBarButtonItem?.isEnabled = true
+                    return
+                }
+                completion(selection)
+                self.finishSending()
+            })
+        }
     }
 }
 
 public func ayuGramRoundVideoEditorController(context: AccountContext, asset: PHAsset, completion: @escaping (AyuGramRoundVideoSelection) -> Void) -> ViewController {
-    return AyuGramRoundVideoEditorController(context: context, asset: asset, completion: completion)
+    return AyuGramRoundVideoEditorController(context: context, mode: .asset(asset, completion))
+}
+
+public func ayuGramRoundVideoEditorController(context: AccountContext, videoURL: URL, completion: @escaping (AyuGramRoundVideoURLSelection) -> Void) -> ViewController {
+    return AyuGramRoundVideoEditorController(context: context, mode: .videoURL(videoURL, completion))
 }

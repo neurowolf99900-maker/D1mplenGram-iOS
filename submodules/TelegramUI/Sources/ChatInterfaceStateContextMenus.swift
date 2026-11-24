@@ -1657,7 +1657,35 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
                 if !SGSimpleSettings.shared.contextShowSaveMedia { sgActions.append(actions.removeLast()) }
             }
         }
-        
+
+        if AyuGramSettings.shared.extra.d1mplenVideoToRoundEnabled && !isCopyProtected && message.id.peerId.namespace != Namespaces.Peer.SecretChat,
+           let targetPeerId = chatPresentationInterfaceState.chatLocation.peerId,
+           let roundFile = message.effectiveMedia.compactMap({ $0 as? TelegramMediaFile }).first(where: { $0.isVideo && !$0.isInstantVideo && !$0.isAnimated }) {
+            let threadId = chatPresentationInterfaceState.chatLocation.threadId
+            let silentPosting = chatPresentationInterfaceState.interfaceState.silentPosting
+            let engineMsg = EngineMessage(message)
+            actions.append(.action(ContextMenuActionItem(text: "Отправить как кружок", icon: { theme in
+                let symbol = UIImage(systemName: "record.circle", withConfiguration: UIImage.SymbolConfiguration(pointSize: 20.0, weight: .regular))
+                return generateTintedImage(image: symbol, color: theme.actionSheet.primaryTextColor)
+            }, action: { _, f in
+                f(.default)
+                d1mplenConvertMessageVideoToRound(
+                    context: context,
+                    message: engineMsg,
+                    file: roundFile,
+                    targetPeerId: targetPeerId,
+                    targetThreadId: threadId,
+                    silentPosting: silentPosting,
+                    presentOverlay: { c in
+                        controllerInteraction.presentControllerInCurrent(c, nil)
+                    },
+                    pushController: { c in
+                        controllerInteraction.navigationController()?.pushViewController(c)
+                    }
+                )
+            })))
+        }
+
         if !isCopyProtected, let disappearing = ayuGramDisappearingMedia(EngineMessage(message)) {
             var alreadyOffered = false
             if case .image = disappearing, ayuPrivateMediaDisplayMessage(message) != nil {

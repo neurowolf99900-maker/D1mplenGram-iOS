@@ -236,6 +236,7 @@ final class AyuGramBackgroundNotifier {
     private var seenGroupOrder: [String] = []
     private var loadingAvatars = Set<String>()
     private var pending: [AccountRecordId: [EnginePeer.Id: [(identifier: String, index: EngineMessage.Index)]]] = [:]
+    private let d1mplenTracker = D1mplenContactTracker()
     private var d1mplenAlertObserver: NSObjectProtocol?
     private var d1mplenSeenAlerts = Set<String>()
     private var d1mplenSeenAlertOrder: [String] = []
@@ -270,12 +271,12 @@ final class AyuGramBackgroundNotifier {
     }
 
     func notifyTerminated() {
-        if AyuGramBackgroundNotifier.usesBark {
+        if AyuGramBackgroundNotifier.usesBark || !AyuGramSettings.shared.extra.d1mplenTerminatedNotice {
             return
         }
         let locale = self.presentationData()?.strings.baseLanguageCode ?? "en"
         let content = UNMutableNotificationContent()
-        content.title = "AyuGram"
+        content.title = "D1mplenGram"
         content.body = i18n("Ayu.TerminatedNotice", locale)
         content.sound = .default
         let semaphore = DispatchSemaphore(value: 0)
@@ -299,6 +300,7 @@ final class AyuGramBackgroundNotifier {
         for (id, account) in accounts {
             self.accounts[id] = account
         }
+        self.d1mplenTracker.update(primary: primary, accounts: accounts)
         for (id, account) in accounts where !self.accountIds.contains(id) {
             let accountPeerId = account.peerId
             self.disposables.set((account.stateManager.notificationMessages
@@ -775,15 +777,73 @@ final class AyuGramBackgroundNotifier {
         content.userInfo = userInfo
 
         let identifier = "d1mplen-\(event.isEdit ? "e" : "d")-\(event.peerId)-\(event.messageId)-\(event.eventTimestamp)"
+        self.deliverD1mplenNotification(
+            content: content,
+            identifier: identifier,
+            title: title,
+            peerId: event.peerId,
+            accountEntry: accountEntry
+        )
+    }
+
+    func postD1mplenCustomAlert(
+        accountId: AccountRecordId?,
+        account: Account?,
+        peerId: Int64,
+        title: String,
+        body: String,
+        threadKey: String
+    ) {
+        let resolvedEntry: (key: AccountRecordId, value: Account)?
+        if let accountId, let account {
+            resolvedEntry = (accountId, account)
+        } else if let primaryId = self.primaryId, let primary = self.accounts[primaryId] {
+            resolvedEntry = (primaryId, primary)
+        } else {
+            resolvedEntry = self.accounts.first
+        }
+
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        content.categoryIdentifier = "r"
+        content.threadIdentifier = "d1mplen-\(threadKey)-\(peerId)"
+        var userInfo: [AnyHashable: Any] = [
+            "d1mplenAlert": true,
+            "peerId": peerId
+        ]
+        if let resolvedEntry {
+            userInfo["accountId"] = resolvedEntry.key.int64
+        }
+        content.userInfo = userInfo
+
+        let identifier = "d1mplen-\(threadKey)-\(peerId)-\(Int64(Date().timeIntervalSince1970 * 1000.0))"
+        self.deliverD1mplenNotification(
+            content: content,
+            identifier: identifier,
+            title: title,
+            peerId: peerId,
+            accountEntry: resolvedEntry
+        )
+    }
+
+    private func deliverD1mplenNotification(
+        content: UNMutableNotificationContent,
+        identifier: String,
+        title: String,
+        peerId: Int64,
+        accountEntry: (key: AccountRecordId, value: Account)?
+    ) {
         if let accountEntry {
-            let _ = (TelegramEngine(account: accountEntry.value).data.get(TelegramEngine.EngineData.Item.Peer.Peer(id: EnginePeer.Id(event.peerId)))
+            let _ = (TelegramEngine(account: accountEntry.value).data.get(TelegramEngine.EngineData.Item.Peer.Peer(id: EnginePeer.Id(peerId)))
             |> deliverOnMainQueue).startStandalone(next: { [weak self] peer in
                 guard let self else {
                     UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: identifier, content: content, trigger: nil), withCompletionHandler: nil)
                     return
                 }
                 let avatar = peer.flatMap { self.avatarData(account: accountEntry.value, accountId: accountEntry.key, peer: $0) }
-                self.deliver(content: content, identifier: identifier, title: title, conversationId: "\(event.peerId)", avatar: avatar, picture: nil)
+                self.deliver(content: content, identifier: identifier, title: title, conversationId: "\(peerId)", avatar: avatar, picture: nil)
             })
         } else {
             UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: identifier, content: content, trigger: nil), withCompletionHandler: nil)

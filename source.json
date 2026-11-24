@@ -1,0 +1,40 @@
+{
+  "name": "D1mplenGram",
+  "subtitle": "Официальный источник обновлений D1mplenGram iOS",
+  "description": "Собственные сборки D1mplenGram для Feather, ESign, Scarlet и SideStore/AltStore.",
+  "identifier": "com.d1mplengram.source",
+  "sourceURL": "https://raw.githubusercontent.com/neurowolf99900-maker/D1mplenGram-iOS/standard/source.json",
+  "website": "https://github.com/neurowolf99900-maker/D1mplenGram-iOS",
+  "iconURL": "https://raw.githubusercontent.com/neurowolf99900-maker/D1mplenGram-iOS/standard/d1mplen-icon.png",
+  "tintColor": "#4A80FF",
+  "apps": [
+    {
+      "name": "D1mplenGram",
+      "bundleIdentifier": "org.ayugram.ios",
+      "developerName": "D1mplenGram",
+      "subtitle": "AyuGram + D1mplen Tools",
+      "localizedDescription": "D1mplenGram iOS — расширенный клиент Telegram с радаром и статистикой контактов, шторкой ⚡ D1mplen в чатах, конвертером видео в кружочки и уведомлениями.",
+      "iconURL": "https://raw.githubusercontent.com/neurowolf99900-maker/D1mplenGram-iOS/standard/d1mplen-icon.png",
+      "tintColor": "#4A80FF",
+      "category": "social",
+      "version": "13.2.200301",
+      "buildVersion": "200301",
+      "versionDate": "2026-11-23T22:25:00Z",
+      "versionDescription": "v1.0.1: Лупа поиска остаётся видимой на всех вкладках и в настройках; уведомления в личных чатах об удалениях и изменениях сообщений.",
+      "downloadURL": "https://github.com/neurowolf99900-maker/D1mplenGram-iOS/releases/download/v1.0.1/D1mplenGram.ipa",
+      "size": 87406539,
+      "minOSVersion": "15.0",
+      "versions": [
+        {
+          "version": "13.2.200301",
+          "buildVersion": "200301",
+          "date": "2026-11-23T22:25:00Z",
+          "localizedDescription": "v1.0.1: Лупа поиска остаётся видимой на всех вкладках и в настройках; уведомления в личных чатах об удалениях и изменениях сообщений.",
+          "downloadURL": "https://github.com/neurowolf99900-maker/D1mplenGram-iOS/releases/download/v1.0.1/D1mplenGram.ipa",
+          "size": 87406539,
+          "minOSVersion": "15.0"
+        }
+      ]
+    }
+  ]
+}

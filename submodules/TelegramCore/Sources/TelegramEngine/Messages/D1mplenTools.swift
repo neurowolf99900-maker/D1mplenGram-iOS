@@ -207,6 +207,9 @@ public func d1mplenRefreshTrackedPeer(
             return .single(false)
         }
         return account.network.request(Api.functions.users.getUsers(id: [inputUser]))
+        |> `catch` { _ -> Signal<[Api.User], NoError> in
+            return .single([])
+        }
         |> mapToSignal { users -> Signal<Bool, NoError> in
             var matchedUser: Api.User?
             for user in users where user.peerId == peerId {
@@ -231,9 +234,6 @@ public func d1mplenRefreshTrackedPeer(
                 }
                 return true
             }
-        }
-        |> `catch` { _ -> Signal<Bool, NoError> in
-            return .single(false)
         }
     }
 }

@@ -788,16 +788,19 @@ extension ChatControllerImpl {
         let silent = self.presentationInterfaceState.interfaceState.silentPosting
         let manager = D1mplenChatToolsManager.shared
 
+        let sheet = ActionSheetController(presentationData: data)
         var mainItems: [ActionSheetItem] = []
 
         if isUserPeer {
             let isTracked = D1mplenTrackerStore.shared.isTracked(rawPeerId)
             if isTracked {
-                mainItems.append(ActionSheetButtonItem(title: "📡 В мониторинге · Статистика", color: .accent, action: { [weak self] in
+                mainItems.append(ActionSheetButtonItem(title: "📡 В мониторинге · Статистика", color: .accent, action: { [weak self, weak sheet] in
+                    sheet?.dismissAnimated()
                     self?.d1mplenPresentTrackingOptions(peerId: peerId, displayName: displayName, username: username)
                 }))
             } else {
-                mainItems.append(ActionSheetButtonItem(title: "📡 В мониторинг (отслеживать чат)", color: .accent, action: { [weak self] in
+                mainItems.append(ActionSheetButtonItem(title: "📡 В мониторинг (отслеживать чат)", color: .accent, action: { [weak self, weak sheet] in
+                    sheet?.dismissAnimated()
                     guard let self else { return }
                     D1mplenTrackerStore.shared.addOrUpdateContact(peerId: rawPeerId, displayName: displayName, username: username)
                     self.d1mplenShowToast("Контакт добавлен в радар D1mplenGram")
@@ -808,13 +811,15 @@ extension ChatControllerImpl {
 
         if extra.d1mplenFakeStatusEnabled {
             if manager.isFakeStatusActive(for: peerId) {
-                mainItems.append(ActionSheetButtonItem(title: "⏹ Остановить фейк-статус", color: .destructive, action: { [weak self] in
+                mainItems.append(ActionSheetButtonItem(title: "⏹ Остановить фейк-статус", color: .destructive, action: { [weak self, weak sheet] in
+                    sheet?.dismissAnimated()
                     guard let self else { return }
                     manager.stopFakeStatus(context: self.context, peerId: peerId, threadId: threadId)
                     self.d1mplenShowToast("Фейк-статус остановлен")
                 }))
             } else {
-                mainItems.append(ActionSheetButtonItem(title: "🎭 Фейк-статус (печатает / кружок / ГС)", color: .accent, action: { [weak self] in
+                mainItems.append(ActionSheetButtonItem(title: "🎭 Фейк-статус (печатает / кружок / ГС)", color: .accent, action: { [weak self, weak sheet] in
+                    sheet?.dismissAnimated()
                     self?.d1mplenPresentFakeStatusPicker(peerId: peerId, threadId: threadId)
                 }))
             }
@@ -822,23 +827,27 @@ extension ChatControllerImpl {
 
         if extra.d1mplenMassReactionsEnabled {
             if manager.isMassReactionActive(for: peerId) {
-                mainItems.append(ActionSheetButtonItem(title: "⏹ Остановить масс-реакции", color: .destructive, action: { [weak self] in
+                mainItems.append(ActionSheetButtonItem(title: "⏹ Остановить масс-реакции", color: .destructive, action: { [weak self, weak sheet] in
+                    sheet?.dismissAnimated()
                     guard let self else { return }
                     manager.stopMassReactions(for: peerId)
                     self.d1mplenShowToast("Масс-реакции остановлены")
                 }))
             } else {
-                mainItems.append(ActionSheetButtonItem(title: "❤️ Масс-реакции на N сообщений", color: .accent, action: { [weak self] in
+                mainItems.append(ActionSheetButtonItem(title: "❤️ Масс-реакции на N сообщений", color: .accent, action: { [weak self, weak sheet] in
+                    sheet?.dismissAnimated()
                     self?.d1mplenPresentMassReactionsFilter(peerId: peerId)
                 }))
             }
         }
 
         if extra.d1mplenTextAnimEnabled {
-            mainItems.append(ActionSheetButtonItem(title: "✨ Анимация отправки текста", color: .accent, action: { [weak self] in
+            mainItems.append(ActionSheetButtonItem(title: "✨ Анимация отправки текста", color: .accent, action: { [weak self, weak sheet] in
+                sheet?.dismissAnimated()
                 self?.d1mplenPresentAnimationPicker(peerId: peerId, threadId: threadId, silent: silent)
             }))
-            mainItems.append(ActionSheetButtonItem(title: "🔤 Стилизация текста (ЛеСеНкА / Спойлер)", color: .accent, action: { [weak self] in
+            mainItems.append(ActionSheetButtonItem(title: "🔤 Стилизация текста (ЛеСеНкА / Спойлер)", color: .accent, action: { [weak self, weak sheet] in
+                sheet?.dismissAnimated()
                 self?.d1mplenPresentTextStyler(peerId: peerId, threadId: threadId, silent: silent)
             }))
         }
@@ -846,31 +855,34 @@ extension ChatControllerImpl {
         if extra.d1mplenSendWhenOnlineEnabled && isUserPeer {
             let queuedCount = D1mplenTrackerStore.shared.queuedMessages(for: rawPeerId).count
             let queueSuffix = queuedCount > 0 ? " (\(queuedCount) в очереди)" : ""
-            mainItems.append(ActionSheetButtonItem(title: "🕒 Отправить когда зайдёт в сеть\(queueSuffix)", color: .accent, action: { [weak self] in
+            mainItems.append(ActionSheetButtonItem(title: "🕒 Отправить когда зайдёт в сеть\(queueSuffix)", color: .accent, action: { [weak self, weak sheet] in
+                sheet?.dismissAnimated()
                 self?.d1mplenPromptSendWhenOnline(peerId: peerId, displayName: displayName, username: username, silent: silent)
             }))
         }
 
         if extra.d1mplenSelfDestructEnabled {
-            mainItems.append(ActionSheetButtonItem(title: "💣 Самоудаляющееся сообщение", color: .accent, action: { [weak self] in
+            mainItems.append(ActionSheetButtonItem(title: "💣 Самоудаляющееся сообщение", color: .accent, action: { [weak self, weak sheet] in
+                sheet?.dismissAnimated()
                 self?.d1mplenPresentSelfDestructPicker(peerId: peerId, threadId: threadId, silent: silent)
             }))
         }
 
         if extra.d1mplenCleanMyMessagesEnabled {
-            mainItems.append(ActionSheetButtonItem(title: "🧹 Очистить мои последние N", color: .destructive, action: { [weak self] in
+            mainItems.append(ActionSheetButtonItem(title: "🧹 Очистить мои последние N", color: .destructive, action: { [weak self, weak sheet] in
+                sheet?.dismissAnimated()
                 self?.d1mplenPresentCleanCountPicker(peerId: peerId)
             }))
         }
 
         let settingsGroup = ActionSheetItemGroup(items: [
-            ActionSheetButtonItem(title: "⚙️ Настройки D1mplenGram", color: .accent, action: { [weak self] in
+            ActionSheetButtonItem(title: "⚙️ Настройки D1mplenGram", color: .accent, action: { [weak self, weak sheet] in
+                sheet?.dismissAnimated()
                 guard let self else { return }
                 self.push(d1mplenGramSettingsScreen(context: self.context))
             })
         ])
 
-        let sheet = ActionSheetController(presentationData: data)
         var groups: [ActionSheetItemGroup] = []
         if !mainItems.isEmpty {
             groups.append(ActionSheetItemGroup(items: mainItems))

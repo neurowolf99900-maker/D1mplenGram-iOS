@@ -212,8 +212,8 @@ public func pipCrossRadarScreen(context: AccountContext) -> ViewController {
         entries.append(.footer(id: 130, section: .targets, text: "Шпионский радар сравнивает точные таймкоды заходов обоих людей и рассчитывает вероятность их активного личного диалога."))
 
         if let id1 = state.peerId1, let id2 = state.peerId2, id1 != id2 {
-            let sessions1 = D1mplenTrackerStore.shared.profile(for: id1)?.sessions ?? []
-            let sessions2 = D1mplenTrackerStore.shared.profile(for: id2)?.sessions ?? []
+            let sessions1 = D1mplenTrackerStore.shared.contact(for: id1)?.sessions ?? []
+            let sessions2 = D1mplenTrackerStore.shared.contact(for: id2)?.sessions ?? []
 
             var overlaps: [PipOverlapSession] = []
             let now = Date().timeIntervalSince1970

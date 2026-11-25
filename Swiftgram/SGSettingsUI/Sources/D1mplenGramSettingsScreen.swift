@@ -670,7 +670,7 @@ public func d1mplenGramSettingsScreen(context: AccountContext) -> ViewController
     })
     let signal = combineLatest(context.sharedContext.presentationData, changes)
     |> deliverOnMainQueue
-    |> map { data, _ -> (ItemListControllerState, (ItemListNodeState<D1mplenScreenEntry>, D1mplenScreenArguments)) in
+    |> map { data, _ -> (ItemListControllerState, (ItemListNodeState, Any)) in
         let barkConfigured = !(AyuGramPushRelay.barkKey ?? "").isEmpty
         let entries = d1mplenScreenEntries(
             extra: AyuGramSettings.shared.extra,
@@ -697,15 +697,15 @@ public func d1mplenGramSettingsScreen(context: AccountContext) -> ViewController
             rightNavigationButton: nil,
             backNavigationButton: ItemListBackButton(title: data.strings.Common_Back)
         )
-        let listState = ItemListNodeState<D1mplenScreenEntry>(
+        let listState = ItemListNodeState(
             presentationData: ItemListPresentationData(data),
             entries: entries,
             style: .blocks,
             animateChanges: true
         )
-        return (state, (listState, arguments))
+        return (state, (listState, arguments as Any))
     }
-    let controller = ItemListController<D1mplenScreenEntry>(context: context, state: signal)
+    let controller = ItemListController(context: context, state: signal)
     controllerRef = controller
     return controller
 }

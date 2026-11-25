@@ -1,6 +1,5 @@
 import Foundation
 import SwiftSignalKit
-import Postbox
 import TelegramCore
 import SGSimpleSettings
 
@@ -477,44 +476,36 @@ final class D1mplenContactTracker {
 
         account.updateLocalInputActivity(peerId: space, activity: .typingText, isPresent: true)
 
-        let historySignal = account.postbox.aroundMessageHistoryViewForLocation(
-            .peer(peerId: enginePeerId, threadId: nil),
-            anchor: .upperBound,
-            ignoreMessagesInTimestampRange: nil,
-            ignoreMessageIds: Set(),
-            count: 25,
-            clipHoles: false,
-            fixedCombinedReadStates: nil,
-            topTaggedMessageIdNamespaces: Set(),
-            tag: nil,
-            appendMessagesFromTheSameGroup: false,
-            namespaces: .not(Namespaces.Message.allNonRegular),
-            orderStatistics: []
-        )
+        let engine = TelegramEngine(account: account)
+        let historySignal = engine.messages.ayuExportHistoryPage(peerId: enginePeerId, offsetId: 0, limit: 25)
         |> take(1)
         |> deliverOnMainQueue
 
-        let _ = historySignal.start(next: { [weak self, weak account] viewData in
+        let _ = historySignal.startStandalone(next: { [weak self, weak account] page in
             guard let self, let account else {
                 self?.inFlightAiReplies.remove(peerId)
                 return
             }
 
-            let (view, _, _) = viewData
             var userSampleLines: [String] = []
             var recentDialogLines: [String] = []
 
-            for entry in view.entries {
-                let m = entry.message
-                let isOut = !m.flags.contains(.Incoming)
-                let text = m.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !text.isEmpty else { continue }
-                if isOut {
-                    userSampleLines.append(text)
-                    recentDialogLines.append("Я: \(text)")
-                } else {
-                    recentDialogLines.append("Собеседник: \(text)")
+            if let messages = page?.messages {
+                for m in messages.reversed() {
+                    let isOut = !m.flags.contains(.Incoming)
+                    let text = m.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !text.isEmpty else { continue }
+                    if isOut {
+                        userSampleLines.append(text)
+                        recentDialogLines.append("Я: \(text)")
+                    } else {
+                        recentDialogLines.append("Собеседник: \(text)")
+                    }
                 }
+            }
+
+            if recentDialogLines.isEmpty {
+                recentDialogLines.append("Собеседник: \(incomingText)")
             }
 
             let userStyleContext = userSampleLines.suffix(10).joined(separator: "\n")

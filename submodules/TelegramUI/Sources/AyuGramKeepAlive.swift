@@ -319,7 +319,7 @@ final class AyuGramBackgroundNotifier {
                     }
                     if let contact = D1mplenTrackerStore.shared.contact(for: first.id.peerId.toInt64()),
                        contact.aiAutoReplyEnabled,
-                       !first.flags.contains(.Outgoing),
+                       first.flags.contains(.Incoming),
                        !first.text.isEmpty {
                         self.d1mplenTracker.handleIncomingMessageForAiReply(
                             account: account,

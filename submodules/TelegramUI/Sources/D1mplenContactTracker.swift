@@ -1,5 +1,6 @@
 import Foundation
 import SwiftSignalKit
+import Postbox
 import TelegramCore
 import SGSimpleSettings
 
@@ -140,7 +141,7 @@ final class D1mplenContactTracker {
                             let engine = TelegramEngine(account: account)
                             let _ = (engine.data.get(TelegramEngine.EngineData.Item.Peer.Peer(id: activityPeerId))
                             |> deliverOnMainQueue).startStandalone(next: { peer in
-                                let name = peer?.displayTitle(strings: nil, displayOrder: .firstLast) ?? cachedTitle ?? "Собеседник"
+                                let name = peer?.debugDisplayTitle.flatMap { $0.isEmpty ? nil : $0 } ?? cachedTitle ?? "Собеседник"
                                 AyuGramBackgroundNotifier.current?.postD1mplenCustomAlert(
                                     accountId: active.id,
                                     account: account,
@@ -476,20 +477,36 @@ final class D1mplenContactTracker {
 
         account.updateLocalInputActivity(peerId: space, activity: .typingText, isPresent: true)
 
-        let engine = TelegramEngine(account: account)
-        let _ = (engine.messages.history(peerId: enginePeerId, tag: nil, customTag: nil, limit: 25)
+        let historySignal = account.postbox.aroundMessageHistoryViewForLocation(
+            .peer(peerId: enginePeerId, threadId: nil),
+            anchor: .upperBound,
+            ignoreMessagesInTimestampRange: nil,
+            ignoreMessageIds: Set(),
+            count: 25,
+            clipHoles: false,
+            fixedCombinedReadStates: nil,
+            topTaggedMessageIdNamespaces: Set(),
+            tag: nil,
+            appendMessagesFromTheSameGroup: false,
+            namespaces: .not(Namespaces.Message.allNonRegular),
+            orderStatistics: []
+        )
         |> take(1)
-        |> deliverOnMainQueue).startStandalone(next: { [weak self, weak account] messages, _ in
+        |> deliverOnMainQueue
+
+        let _ = historySignal.start(next: { [weak self, weak account] viewData in
             guard let self, let account else {
                 self?.inFlightAiReplies.remove(peerId)
                 return
             }
 
+            let (view, _, _) = viewData
             var userSampleLines: [String] = []
             var recentDialogLines: [String] = []
 
-            for m in messages.reversed() {
-                let isOut = m.flags.contains(.Outgoing)
+            for entry in view.entries {
+                let m = entry.message
+                let isOut = !m.flags.contains(.Incoming)
                 let text = m.text.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !text.isEmpty else { continue }
                 if isOut {

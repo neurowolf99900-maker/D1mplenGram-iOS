@@ -129,6 +129,8 @@ public struct D1mplenTrackedContact: Codable, Equatable {
     public var trackPresence: Bool
     public var trackTyping: Bool
     public var trackVoiceAndVideo: Bool
+    public var aiAutoReplyEnabled: Bool
+    public var aiAutoReplyDelaySeconds: Int32
 
     public init(
         peerId: Int64,
@@ -148,7 +150,9 @@ public struct D1mplenTrackedContact: Codable, Equatable {
         events: [D1mplenTrackerEvent] = [],
         trackPresence: Bool = true,
         trackTyping: Bool = true,
-        trackVoiceAndVideo: Bool = true
+        trackVoiceAndVideo: Bool = true,
+        aiAutoReplyEnabled: Bool = false,
+        aiAutoReplyDelaySeconds: Int32 = 10
     ) {
         self.peerId = peerId
         self.displayName = displayName
@@ -168,6 +172,8 @@ public struct D1mplenTrackedContact: Codable, Equatable {
         self.trackPresence = trackPresence
         self.trackTyping = trackTyping
         self.trackVoiceAndVideo = trackVoiceAndVideo
+        self.aiAutoReplyEnabled = aiAutoReplyEnabled
+        self.aiAutoReplyDelaySeconds = aiAutoReplyDelaySeconds
     }
 
     public init(from decoder: Decoder) throws {
@@ -190,6 +196,8 @@ public struct D1mplenTrackedContact: Codable, Equatable {
         self.trackPresence = try c.decodeIfPresent(Bool.self, forKey: .trackPresence) ?? true
         self.trackTyping = try c.decodeIfPresent(Bool.self, forKey: .trackTyping) ?? true
         self.trackVoiceAndVideo = try c.decodeIfPresent(Bool.self, forKey: .trackVoiceAndVideo) ?? true
+        self.aiAutoReplyEnabled = try c.decodeIfPresent(Bool.self, forKey: .aiAutoReplyEnabled) ?? false
+        self.aiAutoReplyDelaySeconds = try c.decodeIfPresent(Int32.self, forKey: .aiAutoReplyDelaySeconds) ?? 10
     }
 }
 
@@ -392,6 +400,16 @@ public final class D1mplenTrackerStore {
             self.state.contacts[index].trackPresence = trackPresence
             self.state.contacts[index].trackTyping = trackTyping
             self.state.contacts[index].trackVoiceAndVideo = trackVoiceAndVideo
+            self.saveAndNotifyLocked()
+        }
+        self.lock.unlock()
+    }
+
+        public func updateAiSettings(for peerId: Int64, enabled: Bool, delaySeconds: Int32) {
+        self.lock.lock()
+        if let index = self.state.contacts.firstIndex(where: { $0.peerId == peerId }) {
+            self.state.contacts[index].aiAutoReplyEnabled = enabled
+            self.state.contacts[index].aiAutoReplyDelaySeconds = delaySeconds
             self.saveAndNotifyLocked()
         }
         self.lock.unlock()

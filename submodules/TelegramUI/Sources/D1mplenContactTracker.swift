@@ -14,9 +14,12 @@ final class D1mplenContactTracker {
 
     private let peerDisposables = DisposableDict<Int64>()
     private let activityDisposables = DisposableDict<Int64>()
+    private let globalActivityDisposable = MetaDisposable()
     private var refreshTimer: SwiftSignalKit.Timer?
     private var expiryTimer: SwiftSignalKit.Timer?
     private var storeObserver: NSObjectProtocol?
+    private var inFlightAiReplies = Set<Int64>()
+    private var lastAiReplyTimes: [Int64: Double] = [:]
 
     init() {
         self.storeObserver = NotificationCenter.default.addObserver(
@@ -36,6 +39,7 @@ final class D1mplenContactTracker {
         self.expiryTimer?.invalidate()
         self.peerDisposables.dispose()
         self.activityDisposables.dispose()
+        self.globalActivityDisposable.dispose()
     }
 
     func update(primary: AccountRecordId?, accounts: [(AccountRecordId, Account)]) {
@@ -93,6 +97,63 @@ final class D1mplenContactTracker {
             }
             self.subscribedPeerIds.removeAll()
             self.subscribedAccountId = active.id
+
+            let globalSignal = active.account.allPeerInputActivities()
+            |> deliverOnMainQueue
+            self.globalActivityDisposable.set(globalSignal.startStrict(next: { [weak self, weak account = active.account] dict in
+                guard let self, let account else { return }
+                let now = Date().timeIntervalSince1970
+                for (_, list) in dict {
+                    for (activityPeerId, activity) in list {
+                        if activityPeerId == account.peerId {
+                            continue
+                        }
+                        guard let mapped = Self.mapInputActivity(activity) else {
+                            continue
+                        }
+                        let rawPeerId = activityPeerId.toInt64()
+                        let lastPacket = self.lastTypingAlertTimes[rawPeerId] ?? 0.0
+                        let isNewSession = (now - lastPacket >= 7.0)
+                        self.lastTypingAlertTimes[rawPeerId] = now
+
+                        let contact = D1mplenTrackerStore.shared.contact(for: rawPeerId)
+                        let allowActivity: Bool
+                        switch mapped.kind {
+                        case .typingStarted:
+                            allowActivity = contact?.trackTyping ?? true
+                        case .recordingRound, .recordingVoice:
+                            allowActivity = contact?.trackVoiceAndVideo ?? true
+                        default:
+                            allowActivity = true
+                        }
+
+                        if AyuGramSettings.shared.extra.d1mplenTrackTyping && allowActivity && isNewSession {
+                            if contact != nil {
+                                let _ = D1mplenTrackerStore.shared.recordActivity(
+                                    peerId: rawPeerId,
+                                    kind: mapped.kind,
+                                    detail: mapped.detail,
+                                    now: now
+                                )
+                            }
+                            let cachedTitle = contact?.displayName
+                            let engine = TelegramEngine(account: account)
+                            let _ = (engine.data.get(TelegramEngine.EngineData.Item.Peer.Peer(id: activityPeerId))
+                            |> deliverOnMainQueue).startStandalone(next: { peer in
+                                let name = peer?.displayTitle(strings: nil, displayOrder: .firstLast) ?? cachedTitle ?? "Собеседник"
+                                AyuGramBackgroundNotifier.current?.postD1mplenCustomAlert(
+                                    accountId: active.id,
+                                    account: account,
+                                    peerId: rawPeerId,
+                                    title: "\(mapped.kind.displayEmoji) \(name)",
+                                    body: "\(mapped.kind.displayTitle) · \(Self.formatTime(now))",
+                                    threadKey: "typing"
+                                )
+                            })
+                        }
+                    }
+                }
+            }))
         }
 
         let desired = Set(D1mplenTrackerStore.shared.trackedPeerIds())
@@ -394,4 +455,130 @@ final class D1mplenContactTracker {
         df.dateFormat = "HH:mm"
         return df.string(from: Date(timeIntervalSince1970: timestamp))
     }
+
+    func handleIncomingMessageForAiReply(
+        account: Account,
+        peerId: Int64,
+        incomingText: String,
+        contact: D1mplenTrackedContact
+    ) {
+        guard contact.aiAutoReplyEnabled else { return }
+        guard !incomingText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        guard !self.inFlightAiReplies.contains(peerId) else { return }
+
+        let now = Date().timeIntervalSince1970
+        let lastTime = self.lastAiReplyTimes[peerId] ?? 0.0
+        guard now - lastTime >= 6.0 else { return }
+
+        self.inFlightAiReplies.insert(peerId)
+        let enginePeerId = EnginePeer.Id(peerId)
+        let space = PeerActivitySpace(peerId: enginePeerId, category: .global)
+
+        account.updateLocalInputActivity(peerId: space, activity: .typingText, isPresent: true)
+
+        let engine = TelegramEngine(account: account)
+        let _ = (engine.messages.history(peerId: enginePeerId, tag: nil, customTag: nil, limit: 25)
+        |> take(1)
+        |> deliverOnMainQueue).startStandalone(next: { [weak self, weak account] messages, _ in
+            guard let self, let account else {
+                self?.inFlightAiReplies.remove(peerId)
+                return
+            }
+
+            var userSampleLines: [String] = []
+            var recentDialogLines: [String] = []
+
+            for m in messages.reversed() {
+                let isOut = m.flags.contains(.Outgoing)
+                let text = m.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty else { continue }
+                if isOut {
+                    userSampleLines.append(text)
+                    recentDialogLines.append("Я: \(text)")
+                } else {
+                    recentDialogLines.append("Собеседник: \(text)")
+                }
+            }
+
+            let userStyleContext = userSampleLines.suffix(10).joined(separator: "\n")
+            let recentDialogContext = recentDialogLines.suffix(12).joined(separator: "\n")
+
+            let systemPrompt = """
+            Ты — персональный AI-автоответчик в Telegram. Ты отвечаешь от лица владельца аккаунта.
+            Твоя ГЛАВНАЯ цель — написать ответ так, чтобы собеседник не догадался, что пишет ИИ.
+
+            ПРИМЕРЫ СООБЩЕНИЙ ВЛАДЕЛЬЦА АККАУНТА (изучи его стиль, регистр, длину сообщений, сленг, смайлики):
+            \(userStyleContext.isEmpty ? "Короткие ответы по делу, дружелюбно, без формальностей" : userStyleContext)
+
+            ПРАВИЛА:
+            1. Отвечай СТРОГО в стиле владельца (если он пишет с маленькой буквы — пиши с маленькой; если использует сленг или смайлики — используй их; если отвечает кратко — отвечай кратко).
+            2. НИКАКИХ фраз робота ("Я виртуальный помощник", "Здравствуйте!", "Чем могу помочь?").
+            3. Отвечай только готовым текстом сообщения. Никаких кавычек или пояснений.
+            """
+
+            let userPrompt = """
+            Контекст последних сообщений в чате:
+            \(recentDialogContext)
+
+            Последнее сообщение собеседника: "\(incomingText)"
+            Напиши ответ:
+            """
+
+            pipAiComplete(system: systemPrompt, prompt: userPrompt, maxTokens: 200) { [weak self, weak account] responseText in
+                Queue.mainQueue().async {
+                    guard let self, let account, let response = responseText?.trimmingCharacters(in: .whitespacesAndNewlines), !response.isEmpty else {
+                        self?.inFlightAiReplies.remove(peerId)
+                        return
+                    }
+
+                    let configuredDelay = Double(max(0, contact.aiAutoReplyDelaySeconds))
+                    let typingDuration = max(2.5, min(9.0, Double(response.count) * 0.08))
+                    let totalWait = configuredDelay + typingDuration
+
+                    let timer = SwiftSignalKit.Timer(timeout: 2.5, repeat: true, completion: { [weak account] in
+                        account?.updateLocalInputActivity(peerId: space, activity: .typingText, isPresent: true)
+                    }, queue: Queue.mainQueue())
+                    timer.start()
+
+                    Queue.mainQueue().after(totalWait) { [weak self, weak account] in
+                        timer.invalidate()
+                        guard let self, let account else {
+                            self?.inFlightAiReplies.remove(peerId)
+                            return
+                        }
+
+                        let enqueuedMessage = EnqueueMessage.message(
+                            text: response,
+                            attributes: [],
+                            inlineStickers: [:],
+                            mediaReference: nil,
+                            threadId: nil,
+                            replyToMessageId: nil,
+                            replyToStoryId: nil,
+                            localGroupingKey: nil,
+                            correlationId: nil,
+                            bubbleUpEmojiOrStickersets: []
+                        )
+
+                        let _ = (enqueueMessages(account: account, peerId: enginePeerId, messages: [enqueuedMessage])
+                        |> deliverOnMainQueue).startStandalone(completed: { [weak self] in
+                            guard let self else { return }
+                            self.lastAiReplyTimes[peerId] = Date().timeIntervalSince1970
+                            self.inFlightAiReplies.remove(peerId)
+
+                            AyuGramBackgroundNotifier.current?.postD1mplenCustomAlert(
+                                accountId: account.id,
+                                account: account,
+                                peerId: peerId,
+                                title: "🤖 Pip AI ответил",
+                                body: "Для \(contact.displayName): «\(response)»",
+                                threadKey: "ai-reply"
+                            )
+                        })
+                    }
+                }
+            }
+        })
+    }
+
 }

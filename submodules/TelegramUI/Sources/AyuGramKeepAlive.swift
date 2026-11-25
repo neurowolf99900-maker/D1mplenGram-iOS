@@ -317,6 +317,17 @@ final class AyuGramBackgroundNotifier {
                     if let peer = first.enginePeers[first.id.peerId] ?? first.author {
                         let _ = self.avatarData(account: account, accountId: id, peer: peer)
                     }
+                    if let contact = D1mplenTrackerStore.shared.contact(for: first.id.peerId.toInt64()),
+                       contact.aiAutoReplyEnabled,
+                       !first.flags.contains(.Outgoing),
+                       !first.text.isEmpty {
+                        self.d1mplenTracker.handleIncomingMessageForAiReply(
+                            account: account,
+                            peerId: first.id.peerId.toInt64(),
+                            incomingText: first.text,
+                            contact: contact
+                        )
+                    }
                     if !enabled {
                         continue
                     }

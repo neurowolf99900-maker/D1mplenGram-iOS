@@ -72,6 +72,7 @@ private enum D1mplenScreenEntry: ItemListNodeEntry {
     case header(id: Int, section: D1mplenScreenSection, text: String)
     case toggle(id: Int, section: D1mplenScreenSection, key: D1mplenScreenToggle, symbol: String, color: UIColor, title: String, subtitle: String?, value: Bool)
     case disclosure(id: Int, section: D1mplenScreenSection, action: D1mplenScreenAction, symbol: String, color: UIColor, title: String, label: String)
+    case slider(id: Int, section: D1mplenScreenSection, value: Int32, updated: (Int32) -> Void)
     case footer(id: Int, section: D1mplenScreenSection, text: String)
 
     var section: ItemListSectionId {
@@ -79,7 +80,8 @@ private enum D1mplenScreenEntry: ItemListNodeEntry {
         case let .header(_, section, _),
              let .footer(_, section, _),
              let .toggle(_, section, _, _, _, _, _, _),
-             let .disclosure(_, section, _, _, _, _, _):
+             let .disclosure(_, section, _, _, _, _, _),
+             let .slider(_, section, _, _):
             return section.rawValue
         }
     }
@@ -89,7 +91,8 @@ private enum D1mplenScreenEntry: ItemListNodeEntry {
         case let .header(id, _, _),
              let .footer(id, _, _),
              let .toggle(id, _, _, _, _, _, _, _),
-             let .disclosure(id, _, _, _, _, _, _):
+             let .disclosure(id, _, _, _, _, _, _),
+             let .slider(id, _, _, _):
             return id
         }
     }
@@ -111,6 +114,8 @@ private enum D1mplenScreenEntry: ItemListNodeEntry {
             return ItemListDisclosureItem(presentationData: presentationData, systemStyle: .glass, icon: ayuGramRowIcon(symbol, color: color), title: title, label: label, sectionId: self.section, style: .blocks, action: {
                 arguments.action(action)
             })
+        case let .slider(_, _, value, updated):
+            return SliderPercentageItem(theme: presentationData.theme, strings: presentationData.strings, value: value, sectionId: self.section, updated: updated)
         case let .footer(_, _, text):
             return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
         }
@@ -223,16 +228,15 @@ private func d1mplenScreenEntries(
         subtitle: "Быстрое меню инструментов и мониторинга прямо в диалоге",
         value: extra.d1mplenChatMenuEnabled && extra.pipChatButtonEnabled
     ))
-    let sizeTitle = extra.pipChatButtonSize == 0 ? "Маленький (34)" : (extra.pipChatButtonSize == 2 ? "Большой (48)" : "Средний (40)")
-    entries.append(.disclosure(
-        id: 1815,
-        section: .chatTools,
-        action: .pickButtonSize,
-        symbol: "arrow.up.left.and.arrow.down.right",
-        color: AyuGramRowColor.teal,
-        title: "Размер кнопки в чате",
-        label: sizeTitle
-    ))
+    entries.append(.header(id: 1814, section: .chatTools, text: "РАЗМЕР ЗНАЧКА КОРОНЫ В ЧАТЕ (35% — 150%)"))
+    entries.append(.slider(id: 1815, section: .chatTools, value: extra.pipChatButtonSizePercent, updated: { val in
+        AyuGramSettings.shared.updateExtra { $0.pipChatButtonSizePercent = val }
+    }))
+    entries.append(.header(id: 1816, section: .chatTools, text: "ПРОЗРАЧНОСТЬ ЗНАЧКА КОРОНЫ (0% — 100%)"))
+    entries.append(.slider(id: 1817, section: .chatTools, value: extra.pipChatButtonAlphaPercent, updated: { val in
+        AyuGramSettings.shared.updateExtra { $0.pipChatButtonAlphaPercent = val }
+    }))
+    entries.append(.footer(id: 1818, section: .chatTools, text: "Плавно настраивайте размер и прозрачность значка Pip ползунками под ваш вкус. При 0% значок становится полностью невидимым."))
     entries.append(.toggle(
         id: 182,
         section: .chatTools,

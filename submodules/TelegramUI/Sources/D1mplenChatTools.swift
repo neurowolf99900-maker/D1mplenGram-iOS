@@ -891,6 +891,21 @@ extension ChatControllerImpl {
                     self.chatDisplayNode.d1mplenRefreshButton()
                 }))
             }
+
+            let contact = D1mplenTrackerStore.shared.contact(for: rawPeerId)
+            let isAiActive = contact?.aiAutoReplyEnabled ?? false
+            let delay = contact?.aiAutoReplyDelaySeconds ?? 10
+            let aiBtnTitle = isAiActive ? "🤖 AI Автоответчик: ВКЛ (\(delay)с) — Выключить" : "🤖 Включить AI Автоответчик для чата"
+            mainItems.append(ActionSheetButtonItem(title: aiBtnTitle, color: isAiActive ? .destructive : .accent, action: { [weak self, weak sheet] in
+                sheet?.dismissAnimated()
+                guard let self else { return }
+                if !D1mplenTrackerStore.shared.isTracked(rawPeerId) {
+                    D1mplenTrackerStore.shared.addOrUpdateContact(peerId: rawPeerId, displayName: displayName, username: username)
+                }
+                let nextActive = !isAiActive
+                D1mplenTrackerStore.shared.updateAiSettings(for: rawPeerId, enabled: nextActive, delaySeconds: delay)
+                self.d1mplenShowToast(nextActive ? "🤖 AI Автоответчик включён для этого чата" : "AI Автоответчик отключён")
+            }))
         }
 
         if extra.d1mplenFakeStatusEnabled {

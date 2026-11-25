@@ -188,7 +188,7 @@ public struct AyuGramExtraSettings: Codable, Equatable {
     public var anonymousStats = true
     public var chatCopilot = true
     public var d1mplenAutoLike = false
-    public var d1mplenNotifyEnabled = false
+    public var d1mplenNotifyEnabled = true
     public var d1mplenNotifyDeletes = true
     public var d1mplenNotifyEdits = true
     public var d1mplenNotifyText = true
@@ -216,6 +216,8 @@ public struct AyuGramExtraSettings: Codable, Equatable {
     public var pipCrossRadarEnabled = true
     public var pipAutoLikeEmoji = "👍"
     public var pipChatButtonSize: Int = 1
+    public var pipChatButtonSizePercent: Int32 = 50
+    public var pipChatButtonAlphaPercent: Int32 = 100
     public var pipChatButtonEnabled = true
     public var pipAiApiKey: String = ""
     public var pipAiProvider: Int = 0

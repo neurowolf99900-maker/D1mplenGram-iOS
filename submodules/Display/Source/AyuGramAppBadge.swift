@@ -20,6 +20,111 @@ private func ayuPlane(_ rect: CGRect, foreground: UIColor, secondary: UIColor) {
     }
 }
 
+
+public func pipDrawCrown(_ rect: CGRect, foreground: UIColor, secondary: UIColor) {
+    let w = rect.width
+    let h = rect.height
+    let x = rect.minX
+    let y = rect.minY
+
+    let path = UIBezierPath()
+    path.move(to: CGPoint(x: x + w * 0.08, y: y + h * 0.80))
+    path.addLine(to: CGPoint(x: x + w * 0.92, y: y + h * 0.80))
+    path.addLine(to: CGPoint(x: x + w * 0.95, y: y + h * 0.32))
+    path.addLine(to: CGPoint(x: x + w * 0.72, y: y + h * 0.54))
+    path.addLine(to: CGPoint(x: x + w * 0.50, y: y + h * 0.12))
+    path.addLine(to: CGPoint(x: x + w * 0.28, y: y + h * 0.54))
+    path.addLine(to: CGPoint(x: x + w * 0.05, y: y + h * 0.32))
+    path.close()
+
+    foreground.setFill()
+    path.fill()
+
+    let facet = UIBezierPath()
+    facet.move(to: CGPoint(x: x + w * 0.50, y: y + h * 0.12))
+    facet.addLine(to: CGPoint(x: x + w * 0.72, y: y + h * 0.54))
+    facet.addLine(to: CGPoint(x: x + w * 0.50, y: y + h * 0.80))
+    facet.close()
+    secondary.setFill()
+    facet.fill()
+
+    let facetLeft = UIBezierPath()
+    facetLeft.move(to: CGPoint(x: x + w * 0.05, y: y + h * 0.32))
+    facetLeft.addLine(to: CGPoint(x: x + w * 0.28, y: y + h * 0.54))
+    facetLeft.addLine(to: CGPoint(x: x + w * 0.18, y: y + h * 0.80))
+    facetLeft.close()
+    secondary.withAlphaComponent(0.65).setFill()
+    facetLeft.fill()
+
+    let band = UIBezierPath(roundedRect: CGRect(x: x + w * 0.06, y: y + h * 0.84, width: w * 0.88, height: max(1.5, h * 0.12)), cornerRadius: max(0.8, h * 0.06))
+    foreground.setFill()
+    band.fill()
+
+    let ballRadius = max(1.0, w * 0.07)
+    let leftBall = UIBezierPath(ovalIn: CGRect(x: x + w * 0.05 - ballRadius, y: y + h * 0.32 - ballRadius * 1.5, width: ballRadius * 2, height: ballRadius * 2))
+    let centerBall = UIBezierPath(ovalIn: CGRect(x: x + w * 0.50 - ballRadius * 1.15, y: y + h * 0.12 - ballRadius * 2.0, width: ballRadius * 2.3, height: ballRadius * 2.3))
+    let rightBall = UIBezierPath(ovalIn: CGRect(x: x + w * 0.95 - ballRadius, y: y + h * 0.32 - ballRadius * 1.5, width: ballRadius * 2, height: ballRadius * 2))
+
+    secondary.setFill()
+    leftBall.fill()
+    centerBall.fill()
+    rightBall.fill()
+}
+
+public enum PipMenuIconTheme {
+    case stealth
+    case radar
+    case settings
+    case pro
+}
+
+public func pipMenuIcon(theme: PipMenuIconTheme, size: CGFloat = 29.0) -> UIImage {
+    let cornerRadius = size * (7.0 / 29.0)
+    return UIGraphicsImageRenderer(size: CGSize(width: size, height: size)).image { context in
+        let cg = context.cgContext
+        let bounds = CGRect(origin: .zero, size: CGSize(width: size, height: size))
+        let clipPath = UIBezierPath(roundedRect: bounds, cornerRadius: cornerRadius)
+        clipPath.addClip()
+
+        let bgColors: [CGColor]
+        switch theme {
+        case .stealth:
+            bgColors = [
+                UIColor(red: 0.16, green: 0.08, blue: 0.32, alpha: 1.0).cgColor,
+                UIColor(red: 0.38, green: 0.16, blue: 0.62, alpha: 1.0).cgColor
+            ]
+        case .radar:
+            bgColors = [
+                UIColor(red: 0.03, green: 0.12, blue: 0.28, alpha: 1.0).cgColor,
+                UIColor(red: 0.07, green: 0.42, blue: 0.72, alpha: 1.0).cgColor
+            ]
+        case .settings:
+            bgColors = [
+                UIColor(red: 0.45, green: 0.18, blue: 0.04, alpha: 1.0).cgColor,
+                UIColor(red: 0.92, green: 0.52, blue: 0.10, alpha: 1.0).cgColor
+            ]
+        case .pro:
+            bgColors = [
+                UIColor(red: 0.08, green: 0.16, blue: 0.14, alpha: 1.0).cgColor,
+                UIColor(red: 0.12, green: 0.45, blue: 0.38, alpha: 1.0).cgColor
+            ]
+        }
+
+        if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: bgColors as CFArray, locations: [0.0, 1.0]) {
+            cg.drawLinearGradient(gradient, start: CGPoint(x: 0.0, y: 0.0), end: CGPoint(x: size, y: size), options: [])
+        }
+
+        let borderPath = UIBezierPath(roundedRect: bounds.insetBy(dx: size * 0.03, dy: size * 0.03), cornerRadius: cornerRadius * 0.94)
+        UIColor(red: 1.0, green: 0.86, blue: 0.45, alpha: 0.45).setStroke()
+        borderPath.lineWidth = max(0.65, size * 0.032)
+        borderPath.stroke()
+
+        let inset = size * 0.18
+        let crownRect = CGRect(x: inset, y: inset + size * 0.02, width: size - inset * 2.0, height: (size - inset * 2.0) * 0.88)
+        pipDrawCrown(crownRect, foreground: UIColor(red: 1.0, green: 0.84, blue: 0.32, alpha: 1.0), secondary: UIColor(red: 1.0, green: 0.94, blue: 0.65, alpha: 1.0))
+    }
+}
+
 public func ayuGramOwnerBadgeImage() -> UIImage {
     return ayuSealBadgeImage(fill: UIColor(red: 0.56, green: 0.38, blue: 0.95, alpha: 1), secondary: UIColor(red: 0.85, green: 0.77, blue: 1, alpha: 1))
 }
@@ -40,7 +145,7 @@ private func ayuSealBadgeImage(fill: UIColor, secondary: UIColor) -> UIImage {
         seal.close()
         fill.setFill()
         seal.fill()
-        ayuPlane(CGRect(x: 4.5, y: 4.2, width: 13, height: 13), foreground: .white, secondary: secondary)
+        pipDrawCrown(CGRect(x: 4.5, y: 4.2, width: 13, height: 13), foreground: .white, secondary: secondary)
     }
 }
 
@@ -152,9 +257,9 @@ public func ayuGramAppBadgeImage(style: String, scale: CGFloat) -> UIImage {
             ayuPlane(CGRect(x: -3, y: -10, width: 116, height: 45), foreground: UIColor.black.withAlphaComponent(style.watermark), secondary: UIColor.black.withAlphaComponent(style.watermark * 0.65))
         }
         context.restoreGState()
-        ayuPlane(CGRect(x: 7, y: 3, width: 17, height: 17), foreground: style.foreground, secondary: style.secondary)
+        pipDrawCrown(CGRect(x: 7, y: 3, width: 17, height: 17), foreground: style.foreground, secondary: style.secondary)
         let attributes: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 13, weight: .semibold), .foregroundColor: style.text]
-        let text = "AYUGRAM" as NSString
+        let text = "PIP" as NSString
         let textSize = text.size(withAttributes: attributes)
         text.draw(at: CGPoint(x: 28, y: (base.height - textSize.height) / 2), withAttributes: attributes)
     }
@@ -165,21 +270,11 @@ func ayuGramAppBadgeImage() -> UIImage {
 }
 
 public func ayuGramSettingsIcon() -> UIImage {
-    return UIGraphicsImageRenderer(size: CGSize(width: 29, height: 29)).image { _ in
-        UIColor(red: 0.19, green: 0.15, blue: 0.28, alpha: 1).setFill()
-        UIBezierPath(roundedRect: CGRect(x: 0, y: 0, width: 29, height: 29), cornerRadius: 7).fill()
-        ayuPlane(CGRect(x: 5, y: 5, width: 19, height: 19), foreground: .white, secondary: UIColor(red: 0.76, green: 0.65, blue: 1, alpha: 1))
-    }
+    return pipMenuIcon(theme: .stealth)
 }
 
-/// Sharp, larger variant of the settings icon for headers.
 public func ayuGramLargeIcon(size: CGFloat) -> UIImage {
-    return UIGraphicsImageRenderer(size: CGSize(width: size, height: size)).image { _ in
-        UIColor(red: 0.19, green: 0.15, blue: 0.28, alpha: 1).setFill()
-        UIBezierPath(roundedRect: CGRect(x: 0, y: 0, width: size, height: size), cornerRadius: size * 0.24).fill()
-        let inset = size * 5.0 / 29.0
-        ayuPlane(CGRect(x: inset, y: inset, width: size - inset * 2.0, height: size - inset * 2.0), foreground: .white, secondary: UIColor(red: 0.76, green: 0.65, blue: 1, alpha: 1))
-    }
+    return pipMenuIcon(theme: .stealth, size: size)
 }
 
 private func d1mplenDrawIcon(size: CGFloat, cornerRadius: CGFloat) -> UIImage {
@@ -239,11 +334,11 @@ private func d1mplenDrawIcon(size: CGFloat, cornerRadius: CGFloat) -> UIImage {
 }
 
 public func d1mplenGramSettingsIcon() -> UIImage {
-    return d1mplenDrawIcon(size: 29.0, cornerRadius: 7.0)
+    return pipMenuIcon(theme: .radar)
 }
 
 public func d1mplenGramLargeIcon(size: CGFloat) -> UIImage {
-    return d1mplenDrawIcon(size: size, cornerRadius: size * 0.24)
+    return pipMenuIcon(theme: .radar, size: size)
 }
 
 public func ayuGramMemberBadgeImage() -> UIImage {
@@ -252,7 +347,7 @@ public func ayuGramMemberBadgeImage() -> UIImage {
         UIColor(red: 0.76, green: 0.65, blue: 1, alpha: 1).setStroke()
         outline.lineWidth = 1.2
         outline.stroke()
-        ayuPlane(CGRect(x: 5, y: 4.5, width: 12, height: 13), foreground: .white, secondary: UIColor(red: 0.76, green: 0.65, blue: 1, alpha: 1))
+        pipDrawCrown(CGRect(x: 5, y: 4.5, width: 12, height: 13), foreground: .white, secondary: UIColor(red: 0.76, green: 0.65, blue: 1, alpha: 1))
     }
 }
 

@@ -785,6 +785,38 @@ private func d1mplenContactStatsEntries(
         }
     ))
 
+    let aiEnabled = contact?.aiAutoReplyEnabled ?? false
+    let aiDelay = contact?.aiAutoReplyDelaySeconds ?? 10
+    let delayLabel = aiDelay == 0 ? "Сразу (без задержки)" : "\(aiDelay) сек."
+
+    entries.append(.header(id: 280, section: .profile, text: "🤖 PIP AI АВТООТВЕТЧИК ДЛЯ ЭТОГО КОНТАКТА"))
+    entries.append(.toggle(
+        id: 281,
+        section: .profile,
+        symbol: "sparkles",
+        color: AyuGramRowColor.orange,
+        title: "Умный автоответчик от моего имени",
+        subtitle: "ИИ читает контекст и отвечает в вашем стиле речи с имитацией набора текста",
+        value: aiEnabled,
+        onToggle: { val in
+            D1mplenTrackerStore.shared.updateAiSettings(for: cPeerId, enabled: val, delaySeconds: aiDelay)
+        }
+    ))
+    entries.append(.toggle(
+        id: 282,
+        section: .profile,
+        symbol: "timer",
+        color: AyuGramRowColor.teal,
+        title: "Задержка перед ответом",
+        subtitle: "Нажмите тумблер для смены: \(delayLabel)",
+        value: aiDelay > 0,
+        onToggle: { _ in
+            let nextDelay: Int32 = aiDelay == 0 ? 5 : (aiDelay == 5 ? 15 : (aiDelay == 15 ? 30 : (aiDelay == 30 ? 60 : 0)))
+            D1mplenTrackerStore.shared.updateAiSettings(for: cPeerId, enabled: aiEnabled, delaySeconds: nextDelay)
+        }
+    ))
+    entries.append(.footer(id: 283, section: .profile, text: "Pip AI при входящем сообщении мгновенно включит индикатор «печатает...», выдержит выбранную паузу и отправит живой ответ точно в вашей манере."))
+
     if !queued.isEmpty {
         entries.append(.header(id: 300, section: .queued, text: "ОЧЕРЕДЬ «ОТПРАВИТЬ ПРИ ВХОДЕ В СЕТЬ»"))
         for (idx, item) in queued.enumerated() {

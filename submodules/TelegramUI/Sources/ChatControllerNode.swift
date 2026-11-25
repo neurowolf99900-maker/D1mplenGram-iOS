@@ -4024,8 +4024,12 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
             }
             return
         }
-        let sizeVal = extra.pipChatButtonSize
-        let size: CGFloat = sizeVal == 0 ? 34.0 : (sizeVal == 2 ? 48.0 : 40.0)
+        let sizePercent = CGFloat(max(0, min(100, extra.pipChatButtonSizePercent)))
+        let scale: CGFloat = 0.35 + 1.15 * (sizePercent / 100.0)
+        let size: CGFloat = floor(40.0 * scale)
+        let alphaPercent = CGFloat(max(0, min(100, extra.pipChatButtonAlphaPercent)))
+        let buttonAlpha: CGFloat = alphaPercent / 100.0
+
         let button: D1mplenChatButtonView
         if let current = self.d1mplenButton {
             button = current
@@ -4037,6 +4041,8 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
             self.d1mplenButton = button
             self.view.addSubview(button)
         }
+        button.alpha = buttonAlpha
+        button.isHidden = (buttonAlpha <= 0.02)
         if button.superview === self.view {
             self.view.bringSubviewToFront(button)
         }

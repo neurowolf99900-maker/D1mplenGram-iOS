@@ -265,7 +265,7 @@ public func pipSemanticChatFinderController(context: AccountContext) -> ViewCont
             }
 
             // 1. Search actual messages across Telegram history
-            let location = SearchMessagesLocation.general(tags: nil, minDate: nil, maxDate: nil)
+            let location = SearchMessagesLocation.general(scope: .everywhere, groupId: nil, tags: nil, minDate: nil, maxDate: nil, folderId: nil, communityId: nil)
             let _ = (context.engine.messages.searchMessages(location: location, query: query, state: nil, limit: 30)
             |> take(1)
             |> deliverOnMainQueue).start(next: { searchResult, _ in

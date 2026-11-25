@@ -205,9 +205,32 @@ func pipAiComplete(system: String, prompt: String, maxTokens: Int = 300, complet
             }
         }.resume()
     } else {
-        ayuGramAssistantComplete(system: system, prompt: prompt, maxTokens: maxTokens, locale: "ru") { text, _ in
-            completion(text)
+        // Free public AI endpoint (no API key required)
+        guard let url = URL(string: "https://text.pollinations.ai/openai") else {
+            completion(nil)
+            return
         }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 25.0
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body: [String: Any] = [
+            "messages": [
+                ["role": "system", "content": system],
+                ["role": "user", "content": prompt]
+            ],
+            "model": "openai"
+        ]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        URLSession.shared.dataTask(with: request) { data, _, _ in
+            var reply: String? = nil
+            if let data, let str = String(data: data, encoding: .utf8), !str.isEmpty {
+                reply = str.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            DispatchQueue.main.async {
+                completion(reply)
+            }
+        }.resume()
     }
 }
 
@@ -241,84 +264,108 @@ public func pipSemanticChatFinderController(context: AccountContext) -> ViewCont
                 $0.match = nil
             }
 
-            // Collect top 40 chats
-            let _ = (context.engine.messages.chatListPeers(group: .root, filterPredicate: nil, count: 40)
+            // 1. Search actual messages across Telegram history
+            let location = SearchMessagesLocation.general(tags: nil, minDate: nil, maxDate: nil)
+            let _ = (context.engine.messages.searchMessages(location: location, query: query, state: nil, limit: 30)
             |> take(1)
-            |> deliverOnMainQueue).start(next: { peers, _ in
-                var candidates: [PipChatCandidate] = []
-                var promptLines: [String] = []
+            |> deliverOnMainQueue).start(next: { searchResult, _ in
+                let foundMessages = searchResult.messages
 
-                for (idx, p) in peers.prefix(35).enumerated() {
-                    let title = p.debugDisplayTitle
-                    let username = p.addressName
-                    candidates.append(PipChatCandidate(peerId: p.id, title: title, username: username))
-                    let u = username.map { "@" + $0 } ?? "no_username"
-                    promptLines.append("[\(idx + 1)] ID: \(p.id.toInt64()) | Title: \(title) | \(u)")
-                }
+                // 2. Also fetch top chats for peer mapping
+                let _ = (context.engine.messages.chatListPeers(group: .root, filterPredicate: nil, count: 40)
+                |> take(1)
+                |> deliverOnMainQueue).start(next: { peers, _ in
+                    var candidates: [PipChatCandidate] = []
+                    var promptLines: [String] = []
 
-                if candidates.isEmpty {
-                    updateState {
-                        $0.inProgress = false
-                        $0.match = nil
-                    }
-                    return
-                }
-
-                let system = """
-                You are Pip AI Smart Chat Finder inside Telegram.
-                You are given a list of user chats with their titles and usernames.
-                Analyze the user query describing what happened or who they spoke with, and determine which chat candidate best matches.
-                Respond with valid JSON only in this exact format:
-                {"matched_id": 12345, "reason": "Короткое объяснение на русском, почему подходит этот контакт"}
-                If no chat matches, return:
-                {"matched_id": 0, "reason": "Подходящий чат не найден"}
-                """
-
-                let userPrompt = "User Query: \"\(query)\"\n\nAvailable Chats:\n" + promptLines.joined(separator: "\n")
-
-                pipAiComplete(system: system, prompt: userPrompt, maxTokens: 250) { response in
-                    Queue.mainQueue().async {
-                        updateState { state in
-                            state.inProgress = false
-                            guard let text = response, !text.isEmpty else {
-                                state.match = nil
-                                return
-                            }
-
-                            // Extract JSON or number
-                            var matchedId: Int64 = 0
-                            var reasonText = "Найдено по смыслу запроса"
-
-                            if let data = text.data(using: .utf8),
-                               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                                if let idNum = obj["matched_id"] as? NSNumber {
-                                    matchedId = idNum.int64Value
-                                } else if let idStr = obj["matched_id"] as? String, let idParsed = Int64(idStr) {
-                                    matchedId = idParsed
-                                }
-                                if let r = obj["reason"] as? String, !r.isEmpty {
-                                    reasonText = r
-                                }
-                            } else {
-                                // Fallback: find candidate whose title or username is mentioned in text
-                                for c in candidates {
-                                    if text.contains(c.title) || (c.username != nil && text.contains(c.username!)) {
-                                        matchedId = c.peerId.toInt64()
-                                        reasonText = text
-                                        break
-                                    }
-                                }
-                            }
-
-                            if matchedId != 0, let cand = candidates.first(where: { $0.peerId.toInt64() == matchedId }) {
-                                let peerObj = peers.first(where: { $0.id == cand.peerId })
-                                state.match = PipFinderMatch(peerId: cand.peerId, peer: peerObj, title: cand.title, username: cand.username, reason: reasonText)
-                            } else {
-                                state.match = nil
+                    if !foundMessages.isEmpty {
+                        promptLines.append("--- НАЙДЕННЫЕ СООБЩЕНИЯ В ПЕРЕПИСКЕ ---")
+                        for (idx, m) in foundMessages.prefix(15).enumerated() {
+                            let peerId = m.id.peerId
+                            let peerObj = peers.first(where: { $0.id == peerId })
+                            let title = peerObj?.debugDisplayTitle ?? "Чат \(peerId.toInt64())"
+                            let snippet = String(m.text.prefix(120)).replacingOccurrences(of: "\n", with: " ")
+                            promptLines.append("[\(idx + 1)] Чат: «\(title)» | ID: \(peerId.toInt64()) | Сообщение: \"\(snippet)\"")
+                            if !candidates.contains(where: { $0.peerId == peerId }) {
+                                candidates.append(PipChatCandidate(peerId: peerId, title: title, username: peerObj?.addressName))
                             }
                         }
                     }
-                }
+
+                    for p in peers.prefix(25) {
+                        if !candidates.contains(where: { $0.peerId == p.id }) {
+                            candidates.append(PipChatCandidate(peerId: p.id, title: p.debugDisplayTitle, username: p.addressName))
+                            promptLines.append("Чат: «\(p.debugDisplayTitle)» | ID: \(p.id.toInt64())")
+                        }
+                    }
+
+                    if candidates.isEmpty {
+                        updateState {
+                            $0.inProgress = false
+                            $0.match = nil
+                        }
+                        return
+                    }
+
+                    let system = """
+                    Ты — Pip AI Умный Поисковик по переписке Telegram.
+                    Тебе дан запрос пользователя и фрагменты реальных найденных сообщений и чатов из его Telegram.
+                    Проанализируй смысл вопроса и определи, в каком именно чате происходило искомое действие или событие.
+                    Отвечай ТОЛЬКО валидным JSON строго следующего формата:
+                    {"matched_id": 12345, "reason": "Краткое понятное объяснение на русском, почему подходит этот чат (процитируй суть найденного)"}
+                    Если ни один чат не подходит, верни:
+                    {"matched_id": 0, "reason": "Подходящий чат не найден"}
+                    """
+
+                    let userPrompt = "Запрос пользователя: \"\(query)\"\n\nДанные переписки и чатов:\n" + promptLines.joined(separator: "\n")
+
+                    pipAiComplete(system: system, prompt: userPrompt, maxTokens: 300) { response in
+                        Queue.mainQueue().async {
+                            updateState { state in
+                                state.inProgress = false
+
+                                var matchedId: Int64 = 0
+                                var reasonText = "Найдено по смыслу запроса"
+
+                                if let text = response, !text.isEmpty {
+                                    if let data = text.data(using: .utf8),
+                                       let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                                        if let idNum = obj["matched_id"] as? NSNumber {
+                                            matchedId = idNum.int64Value
+                                        } else if let idStr = obj["matched_id"] as? String, let idParsed = Int64(idStr) {
+                                            matchedId = idParsed
+                                        }
+                                        if let r = obj["reason"] as? String, !r.isEmpty {
+                                            reasonText = r
+                                        }
+                                    } else {
+                                        for c in candidates {
+                                            if text.contains(c.title) || (c.username != nil && text.contains(c.username!)) {
+                                                matchedId = c.peerId.toInt64()
+                                                reasonText = text
+                                                break
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Fallback: if AI didn't return an ID, but searchMessages found messages, use the top message's chat!
+                                if matchedId == 0, let firstMsg = foundMessages.first {
+                                    matchedId = firstMsg.id.peerId.toInt64()
+                                    let snippet = String(firstMsg.text.prefix(80)).replacingOccurrences(of: "\n", with: " ")
+                                    reasonText = "Найдено сообщение в чате: «\(snippet)»"
+                                }
+
+                                if matchedId != 0, let cand = candidates.first(where: { $0.peerId.toInt64() == matchedId }) {
+                                    let peerObj = peers.first(where: { $0.id == cand.peerId })
+                                    state.match = PipFinderMatch(peerId: cand.peerId, peer: peerObj, title: cand.title, username: cand.username, reason: reasonText)
+                                } else {
+                                    state.match = nil
+                                }
+                            }
+                        }
+                    }
+                })
             })
         },
         openChat: { peerId in

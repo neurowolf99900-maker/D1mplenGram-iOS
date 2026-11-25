@@ -672,7 +672,8 @@ final class AyuGramBackgroundNotifier {
             let image = INImage(imageData: avatar)
             var components = PersonNameComponents()
             components.nickname = title
-            let sender = INPerson(personHandle: INPersonHandle(value: conversationId, type: .unknown), nameComponents: components, displayName: title, image: image, contactIdentifier: nil, customIdentifier: conversationId, isMe: false, suggestionType: .none)
+            let freshCustomId = "\(conversationId)_\(Int64(Date().timeIntervalSince1970 * 1000.0))"
+            let sender = INPerson(personHandle: INPersonHandle(value: conversationId, type: .unknown), nameComponents: components, displayName: title, image: image, contactIdentifier: nil, customIdentifier: freshCustomId, isMe: false, suggestionType: .none)
             let me = INPerson(personHandle: INPersonHandle(value: "0", type: .unknown), nameComponents: nil, displayName: nil, image: nil, contactIdentifier: nil, customIdentifier: nil, isMe: true, suggestionType: .none)
             let intent = INSendMessageIntent(recipients: [me], outgoingMessageType: .outgoingMessageText, content: content.body, speakableGroupName: INSpeakableString(spokenPhrase: title), conversationIdentifier: conversationId, serviceName: nil, sender: sender, attachments: nil)
             intent.setImage(image, forParameterNamed: \.sender)
@@ -836,7 +837,9 @@ final class AyuGramBackgroundNotifier {
         accountEntry: (key: AccountRecordId, value: Account)?
     ) {
         if let accountEntry {
-            let _ = (TelegramEngine(account: accountEntry.value).data.get(TelegramEngine.EngineData.Item.Peer.Peer(id: EnginePeer.Id(peerId)))
+            let engine = TelegramEngine(account: accountEntry.value)
+            let _ = engine.peers.fetchAndUpdateCachedPeerData(peerId: EnginePeer.Id(peerId)).startStandalone()
+            let _ = (engine.data.get(TelegramEngine.EngineData.Item.Peer.Peer(id: EnginePeer.Id(peerId)))
             |> deliverOnMainQueue).startStandalone(next: { [weak self] peer in
                 guard let self else {
                     UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: identifier, content: content, trigger: nil), withCompletionHandler: nil)

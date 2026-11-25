@@ -245,12 +245,10 @@ final class D1mplenContactTracker {
                     continue
                 }
                 let now = Date().timeIntervalSince1970
-                let recorded = D1mplenTrackerStore.shared.recordActivity(
-                    peerId: rawPeerId,
-                    kind: mapped.kind,
-                    detail: mapped.detail,
-                    now: now
-                )
+                let lastPacket = self.lastTypingAlertTimes[rawPeerId] ?? 0.0
+                let isNewSession = (now - lastPacket >= 8.0)
+                self.lastTypingAlertTimes[rawPeerId] = now
+
                 let contact = D1mplenTrackerStore.shared.contact(for: rawPeerId)
                 let allowActivity: Bool
                 switch mapped.kind {
@@ -261,21 +259,23 @@ final class D1mplenContactTracker {
                 default:
                     allowActivity = true
                 }
-                if recorded && AyuGramSettings.shared.extra.d1mplenTrackTyping && allowActivity {
-                    let cooldown = AyuGramSettings.shared.extra.pipTypingCooldownSeconds
-                    let lastAlert = self.lastTypingAlertTimes[rawPeerId] ?? 0.0
-                    if now - lastAlert >= cooldown {
-                        self.lastTypingAlertTimes[rawPeerId] = now
-                        let name = contact?.displayName ?? "Контакт"
-                        AyuGramBackgroundNotifier.current?.postD1mplenCustomAlert(
-                            accountId: accountId,
-                            account: account,
-                            peerId: rawPeerId,
-                            title: "\(mapped.kind.displayEmoji) \(name)",
-                            body: "\(mapped.kind.displayTitle) · \(Self.formatTime(now))",
-                            threadKey: "typing"
-                        )
-                    }
+
+                if AyuGramSettings.shared.extra.d1mplenTrackTyping && allowActivity && isNewSession {
+                    let _ = D1mplenTrackerStore.shared.recordActivity(
+                        peerId: rawPeerId,
+                        kind: mapped.kind,
+                        detail: mapped.detail,
+                        now: now
+                    )
+                    let name = contact?.displayName ?? "Контакт"
+                    AyuGramBackgroundNotifier.current?.postD1mplenCustomAlert(
+                        accountId: accountId,
+                        account: account,
+                        peerId: rawPeerId,
+                        title: "\(mapped.kind.displayEmoji) \(name)",
+                        body: "\(mapped.kind.displayTitle) · \(Self.formatTime(now))",
+                        threadKey: "typing"
+                    )
                 }
             }
         }), forKey: rawPeerId)

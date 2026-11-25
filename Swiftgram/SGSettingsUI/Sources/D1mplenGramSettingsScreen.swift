@@ -55,16 +55,24 @@ private enum D1mplenScreenAction: Equatable {
     case setupAiApiKey
 }
 
+private enum D1mplenScreenSlider: Equatable {
+    case chatButtonSize
+    case chatButtonAlpha
+}
+
 private final class D1mplenScreenArguments {
     let toggle: (D1mplenScreenToggle, Bool) -> Void
     let action: (D1mplenScreenAction) -> Void
+    let updateSlider: (D1mplenScreenSlider, Int32) -> Void
 
     init(
         toggle: @escaping (D1mplenScreenToggle, Bool) -> Void,
-        action: @escaping (D1mplenScreenAction) -> Void
+        action: @escaping (D1mplenScreenAction) -> Void,
+        updateSlider: @escaping (D1mplenScreenSlider, Int32) -> Void
     ) {
         self.toggle = toggle
         self.action = action
+        self.updateSlider = updateSlider
     }
 }
 
@@ -72,7 +80,7 @@ private enum D1mplenScreenEntry: ItemListNodeEntry {
     case header(id: Int, section: D1mplenScreenSection, text: String)
     case toggle(id: Int, section: D1mplenScreenSection, key: D1mplenScreenToggle, symbol: String, color: UIColor, title: String, subtitle: String?, value: Bool)
     case disclosure(id: Int, section: D1mplenScreenSection, action: D1mplenScreenAction, symbol: String, color: UIColor, title: String, label: String)
-    case slider(id: Int, section: D1mplenScreenSection, value: Int32, updated: (Int32) -> Void)
+    case slider(id: Int, section: D1mplenScreenSection, setting: D1mplenScreenSlider, value: Int32)
     case footer(id: Int, section: D1mplenScreenSection, text: String)
 
     var section: ItemListSectionId {
@@ -97,6 +105,26 @@ private enum D1mplenScreenEntry: ItemListNodeEntry {
         }
     }
 
+    static func ==(lhs: D1mplenScreenEntry, rhs: D1mplenScreenEntry) -> Bool {
+        switch (lhs, rhs) {
+        case let (.header(lhsId, lhsSection, lhsText), .header(rhsId, rhsSection, rhsText)):
+            return lhsId == rhsId && lhsSection == rhsSection && lhsText == rhsText
+        case let (.toggle(lhsId, lhsSection, lhsKey, _, _, lhsTitle, lhsSubtitle, lhsValue),
+                  .toggle(rhsId, rhsSection, rhsKey, _, _, rhsTitle, rhsSubtitle, rhsValue)):
+            return lhsId == rhsId && lhsSection == rhsSection && lhsKey == rhsKey && lhsTitle == rhsTitle && lhsSubtitle == rhsSubtitle && lhsValue == rhsValue
+        case let (.disclosure(lhsId, lhsSection, lhsAction, _, _, lhsTitle, lhsLabel),
+                  .disclosure(rhsId, rhsSection, rhsAction, _, _, rhsTitle, rhsLabel)):
+            return lhsId == rhsId && lhsSection == rhsSection && lhsAction == rhsAction && lhsTitle == rhsTitle && lhsLabel == rhsLabel
+        case let (.slider(lhsId, lhsSection, lhsSetting, lhsValue),
+                  .slider(rhsId, rhsSection, rhsSetting, rhsValue)):
+            return lhsId == rhsId && lhsSection == rhsSection && lhsSetting == rhsSetting && lhsValue == rhsValue
+        case let (.footer(lhsId, lhsSection, lhsText), .footer(rhsId, rhsSection, rhsText)):
+            return lhsId == rhsId && lhsSection == rhsSection && lhsText == rhsText
+        default:
+            return false
+        }
+    }
+
     static func <(lhs: D1mplenScreenEntry, rhs: D1mplenScreenEntry) -> Bool {
         return lhs.stableId < rhs.stableId
     }
@@ -114,8 +142,10 @@ private enum D1mplenScreenEntry: ItemListNodeEntry {
             return ItemListDisclosureItem(presentationData: presentationData, systemStyle: .glass, icon: ayuGramRowIcon(symbol, color: color), title: title, label: label, sectionId: self.section, style: .blocks, action: {
                 arguments.action(action)
             })
-        case let .slider(_, _, value, updated):
-            return SliderPercentageItem(theme: presentationData.theme, strings: presentationData.strings, value: value, sectionId: self.section, updated: updated)
+        case let .slider(_, _, setting, value):
+            return SliderPercentageItem(theme: presentationData.theme, strings: presentationData.strings, value: value, sectionId: self.section, updated: { val in
+                arguments.updateSlider(setting, val)
+            })
         case let .footer(_, _, text):
             return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
         }
@@ -229,13 +259,9 @@ private func d1mplenScreenEntries(
         value: extra.d1mplenChatMenuEnabled && extra.pipChatButtonEnabled
     ))
     entries.append(.header(id: 1814, section: .chatTools, text: "РАЗМЕР ЗНАЧКА КОРОНЫ В ЧАТЕ (35% — 150%)"))
-    entries.append(.slider(id: 1815, section: .chatTools, value: extra.pipChatButtonSizePercent, updated: { val in
-        AyuGramSettings.shared.updateExtra { $0.pipChatButtonSizePercent = val }
-    }))
+    entries.append(.slider(id: 1815, section: .chatTools, setting: .chatButtonSize, value: extra.pipChatButtonSizePercent))
     entries.append(.header(id: 1816, section: .chatTools, text: "ПРОЗРАЧНОСТЬ ЗНАЧКА КОРОНЫ (0% — 100%)"))
-    entries.append(.slider(id: 1817, section: .chatTools, value: extra.pipChatButtonAlphaPercent, updated: { val in
-        AyuGramSettings.shared.updateExtra { $0.pipChatButtonAlphaPercent = val }
-    }))
+    entries.append(.slider(id: 1817, section: .chatTools, setting: .chatButtonAlpha, value: extra.pipChatButtonAlphaPercent))
     entries.append(.footer(id: 1818, section: .chatTools, text: "Плавно настраивайте размер и прозрачность значка Pip ползунками под ваш вкус. При 0% значок становится полностью невидимым."))
     entries.append(.toggle(
         id: 182,
@@ -670,6 +696,13 @@ public func d1mplenGramSettingsScreen(context: AccountContext) -> ViewController
                 ActionSheetItemGroup(items: [ActionSheetButtonItem(title: presentationData.strings.Common_Cancel, color: .accent, action: { [weak sheet] in sheet?.dismissAnimated() })])
             ])
             controllerRef?.present(sheet, in: .window(.root))
+        }
+    }, updateSlider: { setting, value in
+        switch setting {
+        case .chatButtonSize:
+            AyuGramSettings.shared.updateExtra { $0.pipChatButtonSizePercent = value }
+        case .chatButtonAlpha:
+            AyuGramSettings.shared.updateExtra { $0.pipChatButtonAlphaPercent = value }
         }
     })
     let signal = combineLatest(context.sharedContext.presentationData, changes)

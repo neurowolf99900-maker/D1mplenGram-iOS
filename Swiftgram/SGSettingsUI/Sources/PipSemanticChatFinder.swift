@@ -159,6 +159,58 @@ private struct PipFinderState: Equatable {
     var hasSearched: Bool = false
 }
 
+func pipAiComplete(system: String, prompt: String, maxTokens: Int = 300, completion: @escaping (String?) -> Void) {
+    let extra = AyuGramSettings.shared.extra
+    let customKey = extra.pipAiApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !customKey.isEmpty {
+        let provider = extra.pipAiProvider
+        var endpoint = "https://api.openai.com/v1/chat/completions"
+        var model = "gpt-4o-mini"
+        if provider == 2 {
+            endpoint = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+            model = "gemini-2.0-flash"
+        } else if provider == 3 {
+            endpoint = "https://api.groq.com/openai/v1/chat/completions"
+            model = "llama-3.3-70b-versatile"
+        }
+        guard let url = URL(string: endpoint) else {
+            completion(nil)
+            return
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 30.0
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer " + customKey, forHTTPHeaderField: "Authorization")
+        let body: [String: Any] = [
+            "model": model,
+            "messages": [
+                ["role": "system", "content": system],
+                ["role": "user", "content": prompt]
+            ],
+            "max_tokens": maxTokens,
+            "temperature": 0.3
+        ]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        URLSession.shared.dataTask(with: request) { data, _, _ in
+            var reply: String? = nil
+            if let data, let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let choices = obj["choices"] as? [[String: Any]],
+               let msg = choices.first?["message"] as? [String: Any],
+               let content = msg["content"] as? String {
+                reply = content.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            DispatchQueue.main.async {
+                completion(reply)
+            }
+        }.resume()
+    } else {
+        ayuGramAssistantComplete(system: system, prompt: prompt, maxTokens: maxTokens, locale: "ru") { text, _ in
+            completion(text)
+        }
+    }
+}
+
 public func pipSemanticChatFinderController(context: AccountContext) -> ViewController {
     let stateValue = ValuePromise<PipFinderState>(PipFinderState(), ignoreRepeated: true)
     let stateRef = Atomic<PipFinderState>(value: PipFinderState())
@@ -224,7 +276,7 @@ public func pipSemanticChatFinderController(context: AccountContext) -> ViewCont
 
                 let userPrompt = "User Query: \"\(query)\"\n\nAvailable Chats:\n" + promptLines.joined(separator: "\n")
 
-                ayuGramAssistantComplete(system: system, prompt: userPrompt, maxTokens: 250, locale: "ru") { response, error in
+                pipAiComplete(system: system, prompt: userPrompt, maxTokens: 250) { response in
                     Queue.mainQueue().async {
                         updateState { state in
                             state.inProgress = false
@@ -274,6 +326,8 @@ public func pipSemanticChatFinderController(context: AccountContext) -> ViewCont
         }
     )
 
+    weak var controllerRef: ViewController?
+
     let signal: Signal<(ItemListControllerState, (ItemListNodeState, Any)), NoError> = combineLatest(context.sharedContext.presentationData, stateValue.get())
     |> deliverOnMainQueue
     |> map { presentationData, state -> (ItemListControllerState, (ItemListNodeState, Any)) in
@@ -303,10 +357,23 @@ public func pipSemanticChatFinderController(context: AccountContext) -> ViewCont
             }
         }
 
+        let leftButton = ItemListNavigationButton(
+            content: .text(presentationData.strings.Common_Back),
+            style: .regular,
+            enabled: true,
+            action: { [weak controllerRef] in
+                if let nav = controllerRef?.navigationController as? NavigationController {
+                    let _ = nav.popViewController(animated: true)
+                } else {
+                    controllerRef?.dismiss()
+                }
+            }
+        )
+
         let controllerState = ItemListControllerState(
             presentationData: ItemListPresentationData(presentationData),
             title: .text("ИИ-Поиск чата"),
-            leftNavigationButton: nil,
+            leftNavigationButton: leftButton,
             rightNavigationButton: nil,
             backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back)
         )
@@ -320,6 +387,7 @@ public func pipSemanticChatFinderController(context: AccountContext) -> ViewCont
     }
 
     let controller = ItemListController(context: context, state: signal)
+    controllerRef = controller
     openChatImpl = { [weak controller] peerId in
         context.sharedContext.navigateToChat(accountId: context.account.id, peerId: peerId, messageId: nil)
         (controller?.navigationController as? NavigationController)?.filterController(controller!, animated: true)

@@ -126,6 +126,9 @@ public struct D1mplenTrackedContact: Codable, Equatable {
     public var hasAboutBaseline: Bool
     public var sessions: [D1mplenPresenceSession]
     public var events: [D1mplenTrackerEvent]
+    public var trackPresence: Bool
+    public var trackTyping: Bool
+    public var trackVoiceAndVideo: Bool
 
     public init(
         peerId: Int64,
@@ -142,7 +145,10 @@ public struct D1mplenTrackedContact: Codable, Equatable {
         hasProfileBaseline: Bool = false,
         hasAboutBaseline: Bool = false,
         sessions: [D1mplenPresenceSession] = [],
-        events: [D1mplenTrackerEvent] = []
+        events: [D1mplenTrackerEvent] = [],
+        trackPresence: Bool = true,
+        trackTyping: Bool = true,
+        trackVoiceAndVideo: Bool = true
     ) {
         self.peerId = peerId
         self.displayName = displayName
@@ -159,6 +165,9 @@ public struct D1mplenTrackedContact: Codable, Equatable {
         self.hasAboutBaseline = hasAboutBaseline
         self.sessions = sessions
         self.events = events
+        self.trackPresence = trackPresence
+        self.trackTyping = trackTyping
+        self.trackVoiceAndVideo = trackVoiceAndVideo
     }
 
     public init(from decoder: Decoder) throws {
@@ -178,6 +187,9 @@ public struct D1mplenTrackedContact: Codable, Equatable {
         self.hasAboutBaseline = try c.decodeIfPresent(Bool.self, forKey: .hasAboutBaseline) ?? false
         self.sessions = try c.decodeIfPresent([D1mplenPresenceSession].self, forKey: .sessions) ?? []
         self.events = try c.decodeIfPresent([D1mplenTrackerEvent].self, forKey: .events) ?? []
+        self.trackPresence = try c.decodeIfPresent(Bool.self, forKey: .trackPresence) ?? true
+        self.trackTyping = try c.decodeIfPresent(Bool.self, forKey: .trackTyping) ?? true
+        self.trackVoiceAndVideo = try c.decodeIfPresent(Bool.self, forKey: .trackVoiceAndVideo) ?? true
     }
 }
 
@@ -371,6 +383,17 @@ public final class D1mplenTrackerStore {
         self.lock.lock()
         self.state.contacts.removeAll { $0.peerId == peerId }
         self.saveAndNotifyLocked()
+        self.lock.unlock()
+    }
+
+    public func updateAlertSettings(for peerId: Int64, trackPresence: Bool, trackTyping: Bool, trackVoiceAndVideo: Bool) {
+        self.lock.lock()
+        if let index = self.state.contacts.firstIndex(where: { $0.peerId == peerId }) {
+            self.state.contacts[index].trackPresence = trackPresence
+            self.state.contacts[index].trackTyping = trackTyping
+            self.state.contacts[index].trackVoiceAndVideo = trackVoiceAndVideo
+            self.saveAndNotifyLocked()
+        }
         self.lock.unlock()
     }
 

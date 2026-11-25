@@ -436,6 +436,7 @@ private final class D1mplenStatsArguments {
 private enum D1mplenStatsEntry: ItemListNodeEntry {
     case header(id: Int, section: D1mplenStatsSection, text: String)
     case metric(id: Int, section: D1mplenStatsSection, symbol: String, color: UIColor, title: String, label: String, clickable: Bool, openProfile: Bool)
+    case toggle(id: Int, section: D1mplenStatsSection, symbol: String, color: UIColor, title: String, subtitle: String?, value: Bool, onToggle: (Bool) -> Void)
     case queuedRow(id: Int, message: D1mplenQueuedOnlineMessage)
     case eventRow(id: Int, event: D1mplenTrackerEvent)
     case actionRow(id: Int, title: String, destructive: Bool, actionKind: Int32)
@@ -443,7 +444,7 @@ private enum D1mplenStatsEntry: ItemListNodeEntry {
 
     var section: ItemListSectionId {
         switch self {
-        case let .header(_, section, _), let .metric(_, section, _, _, _, _, _, _), let .footer(_, section, _):
+        case let .header(_, section, _), let .metric(_, section, _, _, _, _, _, _), let .toggle(_, section, _, _, _, _, _, _), let .footer(_, section, _):
             return section.rawValue
         case .queuedRow:
             return D1mplenStatsSection.queued.rawValue
@@ -458,6 +459,7 @@ private enum D1mplenStatsEntry: ItemListNodeEntry {
         switch self {
         case let .header(id, _, _),
              let .metric(id, _, _, _, _, _, _, _),
+             let .toggle(id, _, _, _, _, _, _, _),
              let .queuedRow(id, _),
              let .eventRow(id, _),
              let .actionRow(id, _, _, _),
@@ -489,6 +491,22 @@ private enum D1mplenStatsEntry: ItemListNodeEntry {
                 action: clickable && openProfile ? {
                     args.perform(.openProfile)
                 } : nil
+            )
+        case let .toggle(_, _, symbol, color, title, subtitle, value, onToggle):
+            return ItemListSwitchItem(
+                presentationData: presentationData,
+                systemStyle: .glass,
+                icon: ayuGramRowIcon(symbol, color: color),
+                title: title,
+                text: subtitle,
+                value: value,
+                enabled: true,
+                maximumNumberOfLines: 0,
+                sectionId: self.section,
+                style: .blocks,
+                updated: { val in
+                    onToggle(val)
+                }
             )
         case let .queuedRow(_, queued):
             return ItemListDisclosureItem(
@@ -698,6 +716,49 @@ private func d1mplenContactStatsEntries(
         label: groupCount.map { "\($0)" } ?? "Открыть",
         clickable: peer != nil,
         openProfile: true
+    ))
+
+    entries.append(.header(id: 250, section: .profile, text: "ИНДИВИДУАЛЬНЫЕ УВЕДОМЛЕНИЯ"))
+    let pOnline = contact?.trackPresence ?? true
+    let pTyping = contact?.trackTyping ?? true
+    let pVoice = contact?.trackVoiceAndVideo ?? true
+    let cPeerId = contact?.peerId ?? 0
+
+    entries.append(.toggle(
+        id: 251,
+        section: .profile,
+        symbol: "bell.badge.fill",
+        color: AyuGramRowColor.green,
+        title: "Вход и выход из сети",
+        subtitle: "Уведомлять при заходе и выходе из онлайна",
+        value: pOnline,
+        onToggle: { val in
+            D1mplenTrackerStore.shared.updateAlertSettings(for: cPeerId, trackPresence: val, trackTyping: pTyping, trackVoiceAndVideo: pVoice)
+        }
+    ))
+    entries.append(.toggle(
+        id: 252,
+        section: .profile,
+        symbol: "pencil.and.outline",
+        color: AyuGramRowColor.blue,
+        title: "Печатает сообщение",
+        subtitle: "Уведомлять при наборе текста (с защитой от спама)",
+        value: pTyping,
+        onToggle: { val in
+            D1mplenTrackerStore.shared.updateAlertSettings(for: cPeerId, trackPresence: pOnline, trackTyping: val, trackVoiceAndVideo: pVoice)
+        }
+    ))
+    entries.append(.toggle(
+        id: 253,
+        section: .profile,
+        symbol: "waveform.circle.fill",
+        color: AyuGramRowColor.purple,
+        title: "Записывает ГС или кружок",
+        subtitle: "Уведомлять при записи голосового сообщения или видео",
+        value: pVoice,
+        onToggle: { val in
+            D1mplenTrackerStore.shared.updateAlertSettings(for: cPeerId, trackPresence: pOnline, trackTyping: pTyping, trackVoiceAndVideo: val)
+        }
     ))
 
     if !queued.isEmpty {

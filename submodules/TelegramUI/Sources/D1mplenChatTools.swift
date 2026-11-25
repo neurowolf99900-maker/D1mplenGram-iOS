@@ -36,7 +36,8 @@ final class D1mplenChatButtonView: UIView {
         self.addSubview(self.blurView)
 
         self.iconView.contentMode = .scaleAspectFit
-        self.iconView.image = UIImage(systemName: "bolt.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 17.0, weight: .semibold))
+        self.iconView.image = UIImage(systemName: "crown.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 18.0, weight: .semibold))
+        self.iconView.tintColor = UIColor(red: 1.0, green: 0.84, blue: 0.0, alpha: 1.0)
         self.iconView.isUserInteractionEnabled = false
         self.addSubview(self.iconView)
 
@@ -68,8 +69,8 @@ final class D1mplenChatButtonView: UIView {
 
     func update(theme: PresentationTheme, active: Bool) {
         self.blurView.effect = UIBlurEffect(style: theme.overallDarkAppearance ? .systemThinMaterialDark : .systemThinMaterialLight)
-        self.blurView.layer.borderColor = theme.list.itemPrimaryTextColor.withAlphaComponent(0.14).cgColor
-        self.iconView.tintColor = active ? UIColor(red: 1.0, green: 0.72, blue: 0.16, alpha: 1.0) : theme.list.itemAccentColor
+        self.blurView.layer.borderColor = UIColor(red: 1.0, green: 0.84, blue: 0.0, alpha: active ? 0.7 : 0.25).cgColor
+        self.iconView.tintColor = active ? UIColor(red: 1.0, green: 0.84, blue: 0.0, alpha: 1.0) : (theme.overallDarkAppearance ? UIColor(red: 1.0, green: 0.85, blue: 0.35, alpha: 0.9) : UIColor(red: 0.82, green: 0.65, blue: 0.05, alpha: 1.0))
         self.activeDot.isHidden = !active
     }
 
@@ -251,11 +252,16 @@ final class D1mplenChatToolsManager {
         threadId: Int64?,
         silent: Bool,
         frames: [String],
-        interval: Double = 0.65,
+        interval: Double = 0.95,
         onComplete: ((Bool) -> Void)? = nil
     ) {
-        let cleaned = frames.map { $0.trimmingCharacters(in: .newlines) }.filter { !$0.isEmpty }
-        guard let firstFrame = cleaned.first else {
+        var deduped: [String] = []
+        for f in frames.map({ $0.trimmingCharacters(in: .newlines) }).filter({ !$0.isEmpty }) {
+            if deduped.last != f {
+                deduped.append(f)
+            }
+        }
+        guard let firstFrame = deduped.first else {
             onComplete?(false)
             return
         }
@@ -293,7 +299,7 @@ final class D1mplenChatToolsManager {
                 onComplete?(false)
                 return
             }
-            let remaining = Array(cleaned.dropFirst())
+            let remaining = Array(deduped.dropFirst())
             guard !remaining.isEmpty else {
                 onComplete?(true)
                 return
@@ -329,6 +335,27 @@ final class D1mplenChatToolsManager {
                 applyFrame(at: 0)
             }
         })
+    }
+
+    func sendPlainMessage(
+        context: AccountContext,
+        peerId: EnginePeer.Id,
+        threadId: Int64?,
+        text: String
+    ) {
+        let message: EnqueueMessage = .message(
+            text: text,
+            attributes: [],
+            inlineStickers: [:],
+            mediaReference: nil,
+            threadId: threadId,
+            replyToMessageId: nil,
+            replyToStoryId: nil,
+            localGroupingKey: nil,
+            correlationId: nil,
+            bubbleUpEmojiOrStickersets: []
+        )
+        let _ = enqueueMessages(account: context.account, peerId: peerId, messages: [message]).startStandalone()
     }
 
     func sendSelfDestructMessage(
@@ -448,10 +475,67 @@ final class D1mplenChatToolsManager {
 
     static func hackFrames(for finalText: String) -> [String] {
         return [
-            "💻 Подключение к узлу…",
-            "🔐 Подбор ключа… 64%",
-            "🔓 Доступ получен!",
+            "🟢 [DECRYPTING 01001101] ░░░",
+            "🟢 0x7F #$@!*&^ ~~~",
+            "🟢 РАСШИФРОВКА КАНАЛА...",
+            "🟢 ДАННЫЕ ВОССТАНОВЛЕНЫ:",
             finalText
+        ]
+    }
+
+    static func waveFrames(for finalText: String) -> [String] {
+        return [
+            "🌊 ~ ✦ . . . ✦ ~",
+            "🌊 ~~ ✦ . \(finalText.prefix(4)) . ✦ ~~",
+            "🌊 ~~~ ✦ \(finalText) ✦ ~~~",
+            "✨ \(finalText) ✨"
+        ]
+    }
+
+    static func rainbowHeartFrames(for finalText: String) -> [String] {
+        return [
+            "🤍 ─── 🤍",
+            "💛 ─── 💛",
+            "🧡 ─── 🧡",
+            "❤️ ─── ❤️",
+            "💜 ─── 💜",
+            "💙 ─── 💙",
+            "🌈 \(finalText) 💖"
+        ]
+    }
+
+    static func brickLoadingFrames(for finalText: String) -> [String] {
+        return [
+            "🧱 Загрузка системы... [■□□□□] 20%",
+            "🧱 Загрузка системы... [■■■□□] 60%",
+            "🧱 Загрузка системы... [■■■■□] 85%",
+            "✅ Доступ открыт 100%\n\n\(finalText)"
+        ]
+    }
+
+    static func explosionFrames(for finalText: String) -> [String] {
+        return [
+            "💣 Таймер запущен: 3...",
+            "🧨 До взрыва: 2...",
+            "🔥 Готовность: 1...",
+            "💥 БУМ! 💥\n\n\(finalText)"
+        ]
+    }
+
+    static func neonSignFrames(for finalText: String) -> [String] {
+        return [
+            "💡 [ Неон выключен ]",
+            "⚡ [ Щёлк... Мигает... ]",
+            "🌟 [ НЕОН ЗАГОРЕЛСЯ ]",
+            "✨ \(finalText) ✨"
+        ]
+    }
+
+    static func flipTextFrames(for finalText: String) -> [String] {
+        return [
+            "🔒 Передача секретного пакета...",
+            "🔄 Переворот ключа шифрования...",
+            "🔓 Пакет расшифрован:\n\n\(finalText)"
         ]
     }
 
@@ -875,6 +959,11 @@ extension ChatControllerImpl {
             }))
         }
 
+        mainItems.append(ActionSheetButtonItem(title: "🎲 Рандомайзер (Орёл/Решка, Да/Нет, Числа)", color: .accent, action: { [weak self, weak sheet] in
+            sheet?.dismissAnimated()
+            self?.d1mplenPresentMiniGames(peerId: peerId, threadId: threadId)
+        }))
+
         mainItems.append(ActionSheetButtonItem(title: "🧠 ИИ-Поиск чата по смыслу", color: .accent, action: { [weak self, weak sheet] in
             sheet?.dismissAnimated()
             guard let self else { return }
@@ -1128,13 +1217,17 @@ extension ChatControllerImpl {
     private func d1mplenPresentAnimationPicker(peerId: EnginePeer.Id, threadId: Int64?, silent: Bool) {
         let data = self.presentationData
         let styles: [(title: String, builder: (String) -> [String])] = [
-            ("⌨️ Печатная машинка (по словам)", D1mplenChatToolsManager.typewriterFrames(for:)),
-            ("⏳ Загрузка 15% → 100% ✅", D1mplenChatToolsManager.loadingFrames(for:)),
-            ("💓 Сердцебиение 🤍 → 💘", D1mplenChatToolsManager.heartFrames(for:)),
-            ("💻 Взлом терминала 🔓", D1mplenChatToolsManager.hackFrames(for:))
+            ("⌨️ Печатная машинка", D1mplenChatToolsManager.typewriterFrames(for:)),
+            ("🟢 Матрица / Глитч", D1mplenChatToolsManager.hackFrames(for:)),
+            ("🧱 Загрузка системы 20% → 100%", D1mplenChatToolsManager.brickLoadingFrames(for:)),
+            ("🌈 Радужные сердца", D1mplenChatToolsManager.rainbowHeartFrames(for:)),
+            ("💥 Взрывной детонатор 3..2..1", D1mplenChatToolsManager.explosionFrames(for:)),
+            ("✨ Неоновая вывеска", D1mplenChatToolsManager.neonSignFrames(for:)),
+            ("🌊 Неоновая волна", D1mplenChatToolsManager.waveFrames(for:)),
+            ("🔓 Секретный пакет / Шифр", D1mplenChatToolsManager.flipTextFrames(for:))
         ]
         let sheet = ActionSheetController(presentationData: data)
-        var items: [ActionSheetItem] = [ActionSheetTextItem(title: "Выберите эффект отправки")]
+        var items: [ActionSheetItem] = [ActionSheetTextItem(title: "Выберите крутой эффект анимации")]
         for style in styles {
             items.append(ActionSheetButtonItem(title: style.title, color: .accent, action: { [weak self, weak sheet] in
                 sheet?.dismissAnimated()
@@ -1167,6 +1260,59 @@ extension ChatControllerImpl {
                 self.present(prompt, in: .window(.root))
             }))
         }
+        sheet.setItemGroups([
+            ActionSheetItemGroup(items: items),
+            ActionSheetItemGroup(items: [ActionSheetButtonItem(title: data.strings.Common_Cancel, color: .accent, action: { [weak sheet] in sheet?.dismissAnimated() })])
+        ])
+        self.present(sheet, in: .window(.root))
+    }
+
+    private func d1mplenPresentMiniGames(peerId: EnginePeer.Id, threadId: Int64?) {
+        let data = self.presentationData
+        let sheet = ActionSheetController(presentationData: data)
+        var items: [ActionSheetItem] = [ActionSheetTextItem(title: "🎲 Мини-игры & Рандомайзер в чат")]
+
+        items.append(ActionSheetButtonItem(title: "🪙 Орёл или Решка (Монетка)", color: .accent, action: { [weak self, weak sheet] in
+            sheet?.dismissAnimated()
+            guard let self else { return }
+            let isHeads = Bool.random()
+            let result = isHeads ? "🪙 Подброшена монетка: **ОРЁЛ!** 🦅" : "🪙 Подброшена монетка: **РЕШКА!** 👑"
+            D1mplenChatToolsManager.shared.sendPlainMessage(context: self.context, peerId: peerId, threadId: threadId, text: result)
+            self.d1mplenShowToast("Результат отправлен в чат")
+        }))
+
+        items.append(ActionSheetButtonItem(title: "❓ Да или Нет (Ответ судьбы)", color: .accent, action: { [weak self, weak sheet] in
+            sheet?.dismissAnimated()
+            guard let self else { return }
+            let answers = [
+                "❓ Ответ судьбы: **ДА!** ✅",
+                "❓ Ответ судьбы: **НЕТ!** ❌",
+                "🤔 Ответ судьбы: **ВОЗМОЖНО...** 🔮",
+                "🎯 Ответ судьбы: **ОДНОЗНАЧНО ДА!** 🔥"
+            ]
+            let result = answers.randomElement()!
+            D1mplenChatToolsManager.shared.sendPlainMessage(context: self.context, peerId: peerId, threadId: threadId, text: result)
+            self.d1mplenShowToast("Результат отправлен в чат")
+        }))
+
+        items.append(ActionSheetButtonItem(title: "🎲 Случайное число 1–100", color: .accent, action: { [weak self, weak sheet] in
+            sheet?.dismissAnimated()
+            guard let self else { return }
+            let num = Int.random(in: 1...100)
+            let result = "🎲 Выпало число: **\(num)** (из 100) 🎯"
+            D1mplenChatToolsManager.shared.sendPlainMessage(context: self.context, peerId: peerId, threadId: threadId, text: result)
+            self.d1mplenShowToast("Результат отправлен в чат")
+        }))
+
+        items.append(ActionSheetButtonItem(title: "🎲 Бросить игральный кубик (1–6)", color: .accent, action: { [weak self, weak sheet] in
+            sheet?.dismissAnimated()
+            guard let self else { return }
+            let dice = ["⚀ 1", "⚁ 2", "⚂ 3", "⚃ 4", "⚄ 5", "⚅ 6"]
+            let result = "🎲 Бросок кубика: **\(dice.randomElement()!)**"
+            D1mplenChatToolsManager.shared.sendPlainMessage(context: self.context, peerId: peerId, threadId: threadId, text: result)
+            self.d1mplenShowToast("Результат отправлен в чат")
+        }))
+
         sheet.setItemGroups([
             ActionSheetItemGroup(items: items),
             ActionSheetItemGroup(items: [ActionSheetButtonItem(title: data.strings.Common_Cancel, color: .accent, action: { [weak sheet] in sheet?.dismissAnimated() })])

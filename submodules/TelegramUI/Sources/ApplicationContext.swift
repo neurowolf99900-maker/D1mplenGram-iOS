@@ -361,10 +361,12 @@ final class AuthorizedApplicationContext {
                             strongSelf.d1mplenAutoLikedMessageIds.removeAll()
                         }
                         strongSelf.d1mplenAutoLikedMessageIds.insert(msg.id)
+                        let chosenEmoji = AyuGramSettings.shared.extra.pipAutoLikeEmoji.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let reactionEmoji = chosenEmoji.isEmpty ? "👍" : chosenEmoji
                         let _ = updateMessageReactionsInteractively(
                             account: strongSelf.context.account,
                             messageIds: [msg.id],
-                            reactions: [.builtin("👍")],
+                            reactions: [.builtin(reactionEmoji)],
                             isLarge: false,
                             storeAsRecentlyUsed: false,
                             add: true

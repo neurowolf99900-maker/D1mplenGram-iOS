@@ -50,6 +50,9 @@ private enum D1mplenScreenAction: Equatable {
     case setupBark
     case openCrossRadar
     case openAiChatFinder
+    case pickAutoLikeEmoji
+    case pickButtonSize
+    case setupAiApiKey
 }
 
 private final class D1mplenScreenArguments {
@@ -123,6 +126,7 @@ private func d1mplenScreenEntries(
     var entries: [D1mplenScreenEntry] = []
 
     entries.append(.header(id: 100, section: .features, text: "ФУНКЦИИ PIP: АВТОМАТИЗАЦИЯ"))
+    let currentAutoEmoji = extra.pipAutoLikeEmoji.isEmpty ? "👍" : extra.pipAutoLikeEmoji
     entries.append(.toggle(
         id: 110,
         section: .features,
@@ -130,8 +134,17 @@ private func d1mplenScreenEntries(
         symbol: "hand.thumbsup.fill",
         color: AyuGramRowColor.pink,
         title: "Авто-лайк входящих",
-        subtitle: "Ставить 👍 на каждое входящее сообщение от пользователей",
+        subtitle: "Ставить реакцию \(currentAutoEmoji) на каждое входящее сообщение от пользователей",
         value: extra.d1mplenAutoLike
+    ))
+    entries.append(.disclosure(
+        id: 115,
+        section: .features,
+        action: .pickAutoLikeEmoji,
+        symbol: "face.smiling.fill",
+        color: AyuGramRowColor.orange,
+        title: "Эмодзи для авто-лайка",
+        label: currentAutoEmoji
     ))
     entries.append(.toggle(
         id: 120,
@@ -146,10 +159,10 @@ private func d1mplenScreenEntries(
     entries.append(.footer(
         id: 130,
         section: .features,
-        text: "Авто-лайк срабатывает только в личных чатах на входящие сообщения от людей (боты и каналы игнорируются). Кнопка поиска (лупа) остаётся видимой на всех вкладках, включая Настройки."
+        text: "Авто-лайк срабатывает только в личных чатах на входящие сообщения от людей (боты и каналы игнорируются). Вы можете выбрать абсолютно любой эмодзи для реакции."
     ))
 
-    entries.append(.header(id: 150, section: .tracker, text: "ФУНКЦИИ PIP 2: РАДАР & ДЕТЕКТИВ"))
+    entries.append(.header(id: 150, section: .tracker, text: "ФУНКЦИИ PIP 2: РАДАР & НЕЙРОСЕТИ"))
     entries.append(.disclosure(
         id: 160,
         section: .tracker,
@@ -163,11 +176,18 @@ private func d1mplenScreenEntries(
         id: 162,
         section: .tracker,
         action: .openCrossRadar,
-        symbol: "person.2.wave.2.fill",
-        color: AyuGramRowColor.indigo,
+        symbol: "crown.fill",
+        color: AyuGramRowColor.orange,
         title: "Синхронный радар онлайна",
         label: "Cross-Radar"
     ))
+    let aiProviderTitle: String
+    switch extra.pipAiProvider {
+    case 1: aiProviderTitle = "OpenAI GPT-4o"
+    case 2: aiProviderTitle = "Google Gemini"
+    case 3: aiProviderTitle = "Groq Llama"
+    default: aiProviderTitle = "Llama 3.3 Free"
+    }
     entries.append(.disclosure(
         id: 164,
         section: .tracker,
@@ -175,7 +195,16 @@ private func d1mplenScreenEntries(
         symbol: "brain.head.profile",
         color: AyuGramRowColor.purple,
         title: "ИИ-Поиск чата по смыслу",
-        label: "Llama 3.3"
+        label: aiProviderTitle
+    ))
+    entries.append(.disclosure(
+        id: 166,
+        section: .tracker,
+        action: .setupAiApiKey,
+        symbol: "key.fill",
+        color: AyuGramRowColor.indigo,
+        title: "Свой API-ключ ИИ",
+        label: extra.pipAiApiKey.isEmpty ? "Не задан (Free)" : "Установлен ✅"
     ))
     entries.append(.footer(
         id: 170,
@@ -183,16 +212,26 @@ private func d1mplenScreenEntries(
         text: "Отслеживание онлайна/офлайна, набора текста и записи кружков/ГС, смены аватарки/имени/Bio и подробная статистика активности по выбранным людям."
     ))
 
-    entries.append(.header(id: 180, section: .chatTools, text: "ФУНКЦИИ PIP 3: СПЕЦ-ИНСТРУМЕНТЫ ЧАТА"))
+    entries.append(.header(id: 180, section: .chatTools, text: "ФУНКЦИИ PIP 3: ПЛАВАЮЩАЯ КНОПКА & СПЕЦ-ИНСТРУМЕНТЫ"))
     entries.append(.toggle(
         id: 181,
         section: .chatTools,
         key: .chatMenuEnabled,
-        symbol: "bolt.circle.fill",
+        symbol: "crown.fill",
         color: AyuGramRowColor.orange,
-        title: "Кнопка «⚡ D1mplen» в чате",
-        subtitle: "Быстрая шторка с инструментами и кнопкой «В мониторинг»",
-        value: extra.d1mplenChatMenuEnabled
+        title: "Плавающая кнопка Pip в чате",
+        subtitle: "Быстрое меню инструментов и мониторинга прямо в диалоге",
+        value: extra.d1mplenChatMenuEnabled && extra.pipChatButtonEnabled
+    ))
+    let sizeTitle = extra.pipChatButtonSize == 0 ? "Маленький (34)" : (extra.pipChatButtonSize == 2 ? "Большой (48)" : "Средний (40)")
+    entries.append(.disclosure(
+        id: 1815,
+        section: .chatTools,
+        action: .pickButtonSize,
+        symbol: "arrow.up.left.and.arrow.down.right",
+        color: AyuGramRowColor.teal,
+        title: "Размер кнопки в чате",
+        label: sizeTitle
     ))
     entries.append(.toggle(
         id: 182,
@@ -504,6 +543,120 @@ public func d1mplenGramSettingsScreen(context: AccountContext) -> ViewController
             ayuGramSetUpBark(context: context, present: { viewController in
                 controllerRef?.present(viewController, in: .window(.root))
             })
+        case .pickAutoLikeEmoji:
+            let presentationData = context.sharedContext.currentPresentationData.with { $0 }
+            let sheet = ActionSheetController(presentationData: presentationData)
+            var items: [ActionSheetItem] = [ActionSheetTextItem(title: "Выберите эмодзи для авто-лайка")]
+            for emoji in ["👍", "❤️", "🔥", "🤡", "⚡", "👑", "😍", "🎉", "💩"] {
+                items.append(ActionSheetButtonItem(title: "\(emoji)  \(emoji)", color: .accent, action: { [weak sheet] in
+                    sheet?.dismissAnimated()
+                    AyuGramSettings.shared.updateExtra { $0.pipAutoLikeEmoji = emoji }
+                }))
+            }
+            items.append(ActionSheetButtonItem(title: "✏️ Ввести свой эмодзи…", color: .accent, action: { [weak sheet] in
+                sheet?.dismissAnimated()
+                let prompt = promptController(
+                    context: context,
+                    text: "Введите любой эмодзи для автоматической реакции:",
+                    value: AyuGramSettings.shared.extra.pipAutoLikeEmoji,
+                    placeholder: "Эмодзи",
+                    characterLimit: 8,
+                    apply: { value in
+                        guard let value else { return }
+                        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !trimmed.isEmpty else { return }
+                        AyuGramSettings.shared.updateExtra { $0.pipAutoLikeEmoji = trimmed }
+                    }
+                )
+                controllerRef?.present(prompt, in: .window(.root))
+            }))
+            sheet.setItemGroups([
+                ActionSheetItemGroup(items: items),
+                ActionSheetItemGroup(items: [ActionSheetButtonItem(title: presentationData.strings.Common_Cancel, color: .accent, action: { [weak sheet] in sheet?.dismissAnimated() })])
+            ])
+            controllerRef?.present(sheet, in: .window(.root))
+        case .pickButtonSize:
+            let presentationData = context.sharedContext.currentPresentationData.with { $0 }
+            let sheet = ActionSheetController(presentationData: presentationData)
+            var items: [ActionSheetItem] = [ActionSheetTextItem(title: "Размер плавающей кнопки Pip в чатах")]
+            items.append(ActionSheetButtonItem(title: "Маленький (34 pt)", color: .accent, action: { [weak sheet] in
+                sheet?.dismissAnimated()
+                AyuGramSettings.shared.updateExtra { $0.pipChatButtonSize = 0 }
+            }))
+            items.append(ActionSheetButtonItem(title: "Средний (40 pt - стандарт)", color: .accent, action: { [weak sheet] in
+                sheet?.dismissAnimated()
+                AyuGramSettings.shared.updateExtra { $0.pipChatButtonSize = 1 }
+            }))
+            items.append(ActionSheetButtonItem(title: "Большой (48 pt)", color: .accent, action: { [weak sheet] in
+                sheet?.dismissAnimated()
+                AyuGramSettings.shared.updateExtra { $0.pipChatButtonSize = 2 }
+            }))
+            sheet.setItemGroups([
+                ActionSheetItemGroup(items: items),
+                ActionSheetItemGroup(items: [ActionSheetButtonItem(title: presentationData.strings.Common_Cancel, color: .accent, action: { [weak sheet] in sheet?.dismissAnimated() })])
+            ])
+            controllerRef?.present(sheet, in: .window(.root))
+        case .setupAiApiKey:
+            let presentationData = context.sharedContext.currentPresentationData.with { $0 }
+            let sheet = ActionSheetController(presentationData: presentationData)
+            var items: [ActionSheetItem] = [ActionSheetTextItem(title: "Провайдер и API-Ключ ИИ")]
+            items.append(ActionSheetButtonItem(title: "✨ Бесплатный Llama 3.3 70B (без ключа)", color: .accent, action: { [weak sheet] in
+                sheet?.dismissAnimated()
+                AyuGramSettings.shared.updateExtra { $0.pipAiProvider = 0; $0.pipAiApiKey = "" }
+            }))
+            items.append(ActionSheetButtonItem(title: "🟢 OpenAI (GPT-4o / GPT-4o-mini)", color: .accent, action: { [weak sheet] in
+                sheet?.dismissAnimated()
+                AyuGramSettings.shared.updateExtra { $0.pipAiProvider = 1 }
+                let prompt = promptController(
+                    context: context,
+                    text: "Вставьте ваш API-ключ OpenAI (sk-...):",
+                    value: AyuGramSettings.shared.extra.pipAiApiKey,
+                    placeholder: "sk-...",
+                    characterLimit: 200,
+                    apply: { value in
+                        guard let value else { return }
+                        AyuGramSettings.shared.updateExtra { $0.pipAiApiKey = value.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    }
+                )
+                controllerRef?.present(prompt, in: .window(.root))
+            }))
+            items.append(ActionSheetButtonItem(title: "🔵 Google Gemini (Gemini 2.0 Flash)", color: .accent, action: { [weak sheet] in
+                sheet?.dismissAnimated()
+                AyuGramSettings.shared.updateExtra { $0.pipAiProvider = 2 }
+                let prompt = promptController(
+                    context: context,
+                    text: "Вставьте ваш API-ключ Google Gemini:",
+                    value: AyuGramSettings.shared.extra.pipAiApiKey,
+                    placeholder: "AIza...",
+                    characterLimit: 200,
+                    apply: { value in
+                        guard let value else { return }
+                        AyuGramSettings.shared.updateExtra { $0.pipAiApiKey = value.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    }
+                )
+                controllerRef?.present(prompt, in: .window(.root))
+            }))
+            items.append(ActionSheetButtonItem(title: "⚡ Groq (Llama 3.3 Ultra-Fast)", color: .accent, action: { [weak sheet] in
+                sheet?.dismissAnimated()
+                AyuGramSettings.shared.updateExtra { $0.pipAiProvider = 3 }
+                let prompt = promptController(
+                    context: context,
+                    text: "Вставьте ваш API-ключ Groq (gsk_...):",
+                    value: AyuGramSettings.shared.extra.pipAiApiKey,
+                    placeholder: "gsk_...",
+                    characterLimit: 200,
+                    apply: { value in
+                        guard let value else { return }
+                        AyuGramSettings.shared.updateExtra { $0.pipAiApiKey = value.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    }
+                )
+                controllerRef?.present(prompt, in: .window(.root))
+            }))
+            sheet.setItemGroups([
+                ActionSheetItemGroup(items: items),
+                ActionSheetItemGroup(items: [ActionSheetButtonItem(title: presentationData.strings.Common_Cancel, color: .accent, action: { [weak sheet] in sheet?.dismissAnimated() })])
+            ])
+            controllerRef?.present(sheet, in: .window(.root))
         }
     })
     let signal = combineLatest(context.sharedContext.presentationData, changes)
@@ -516,10 +669,22 @@ public func d1mplenGramSettingsScreen(context: AccountContext) -> ViewController
             trackedCount: D1mplenTrackerStore.shared.trackedPeerIds().count,
             barkConfigured: barkConfigured
         )
+        let leftButton = ItemListNavigationButton(
+            content: .text(data.strings.Common_Back),
+            style: .regular,
+            enabled: true,
+            action: { [weak controllerRef] in
+                if let nav = controllerRef?.navigationController as? NavigationController {
+                    let _ = nav.popViewController(animated: true)
+                } else {
+                    controllerRef?.dismiss()
+                }
+            }
+        )
         let state = ItemListControllerState(
             presentationData: ItemListPresentationData(data),
             title: .text("Pip Tools"),
-            leftNavigationButton: nil,
+            leftNavigationButton: leftButton,
             rightNavigationButton: nil,
             backNavigationButton: ItemListBackButton(title: data.strings.Common_Back)
         )

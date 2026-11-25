@@ -4004,7 +4004,8 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
 
     private func d1mplenUpdateButton(layout: ContainerViewLayout, top: CGFloat) {
         var targetPeerId: EnginePeer.Id?
-        if AyuGramSettings.shared.extra.d1mplenChatMenuEnabled,
+        let extra = AyuGramSettings.shared.extra
+        if extra.d1mplenChatMenuEnabled && extra.pipChatButtonEnabled,
            case .standard(.default) = self.chatPresentationInterfaceState.mode,
            self.chatPresentationInterfaceState.search == nil,
            case let .peer(peerId) = self.chatPresentationInterfaceState.chatLocation,
@@ -4023,11 +4024,13 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
             }
             return
         }
+        let sizeVal = extra.pipChatButtonSize
+        let size: CGFloat = sizeVal == 0 ? 34.0 : (sizeVal == 2 ? 48.0 : 40.0)
         let button: D1mplenChatButtonView
         if let current = self.d1mplenButton {
             button = current
         } else {
-            button = D1mplenChatButtonView(frame: CGRect(x: 0.0, y: 0.0, width: 40.0, height: 40.0))
+            button = D1mplenChatButtonView(frame: CGRect(x: 0.0, y: 0.0, width: size, height: size))
             button.onTap = { [weak self] in
                 self?.controller?.d1mplenPresentChatTools()
             }
@@ -4039,7 +4042,6 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
         }
         let isActive = D1mplenChatToolsManager.shared.hasActiveTask(for: peerId) || D1mplenTrackerStore.shared.isTracked(peerId.toInt64())
         button.update(theme: self.chatPresentationInterfaceState.theme, active: isActive)
-        let size: CGFloat = 40.0
         let x = layout.size.width - layout.safeInsets.right - 10.0 - size
         let y = self.ayuCopilot != nil ? (top + 54.0) : (top + 6.0)
         button.frame = CGRect(x: x, y: y, width: size, height: size)

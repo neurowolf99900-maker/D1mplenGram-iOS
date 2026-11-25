@@ -10,6 +10,7 @@ final class D1mplenContactTracker {
     private var subscribedPeerIds = Set<Int64>()
     private var cachedPresenceUntil: [Int64: Double] = [:]
     private var queuedSendingIds = Set<String>()
+    private var lastTypingAlertTimes: [Int64: Double] = [:]
 
     private let peerDisposables = DisposableDict<Int64>()
     private let activityDisposables = DisposableDict<Int64>()
@@ -204,7 +205,10 @@ final class D1mplenContactTracker {
                 now: now
             )
 
-            if transition.becameOnline && extra.d1mplenTrackOnline {
+            let contact = D1mplenTrackerStore.shared.contact(for: rawPeerId)
+            let allowPresence = contact?.trackPresence ?? true
+
+            if allowPresence && transition.becameOnline && extra.d1mplenTrackOnline {
                 AyuGramBackgroundNotifier.current?.postD1mplenCustomAlert(
                     accountId: accountId,
                     account: account,
@@ -213,7 +217,7 @@ final class D1mplenContactTracker {
                     body: "Зашёл онлайн в \(Self.formatTime(now))",
                     threadKey: "presence"
                 )
-            } else if transition.becameOffline && extra.d1mplenTrackOffline {
+            } else if allowPresence && transition.becameOffline && extra.d1mplenTrackOffline {
                 AyuGramBackgroundNotifier.current?.postD1mplenCustomAlert(
                     accountId: accountId,
                     account: account,
@@ -233,7 +237,7 @@ final class D1mplenContactTracker {
         |> deliverOnMainQueue
 
         self.activityDisposables.set(activitySignal.startStrict(next: { [weak self] list in
-            guard self != nil else {
+            guard let self else {
                 return
             }
             for (activityPeerId, activity) in list where activityPeerId == enginePeerId {
@@ -247,16 +251,31 @@ final class D1mplenContactTracker {
                     detail: mapped.detail,
                     now: now
                 )
-                if recorded && AyuGramSettings.shared.extra.d1mplenTrackTyping {
-                    let name = D1mplenTrackerStore.shared.contact(for: rawPeerId)?.displayName ?? "Контакт"
-                    AyuGramBackgroundNotifier.current?.postD1mplenCustomAlert(
-                        accountId: accountId,
-                        account: account,
-                        peerId: rawPeerId,
-                        title: "\(mapped.kind.displayEmoji) \(name)",
-                        body: "\(mapped.kind.displayTitle) · \(Self.formatTime(now))",
-                        threadKey: "typing"
-                    )
+                let contact = D1mplenTrackerStore.shared.contact(for: rawPeerId)
+                let allowActivity: Bool
+                switch mapped.kind {
+                case .typingStarted:
+                    allowActivity = contact?.trackTyping ?? true
+                case .recordingRound, .recordingVoice:
+                    allowActivity = contact?.trackVoiceAndVideo ?? true
+                default:
+                    allowActivity = true
+                }
+                if recorded && AyuGramSettings.shared.extra.d1mplenTrackTyping && allowActivity {
+                    let cooldown = AyuGramSettings.shared.extra.pipTypingCooldownSeconds
+                    let lastAlert = self.lastTypingAlertTimes[rawPeerId] ?? 0.0
+                    if now - lastAlert >= cooldown {
+                        self.lastTypingAlertTimes[rawPeerId] = now
+                        let name = contact?.displayName ?? "Контакт"
+                        AyuGramBackgroundNotifier.current?.postD1mplenCustomAlert(
+                            accountId: accountId,
+                            account: account,
+                            peerId: rawPeerId,
+                            title: "\(mapped.kind.displayEmoji) \(name)",
+                            body: "\(mapped.kind.displayTitle) · \(Self.formatTime(now))",
+                            threadKey: "typing"
+                        )
+                    }
                 }
             }
         }), forKey: rawPeerId)

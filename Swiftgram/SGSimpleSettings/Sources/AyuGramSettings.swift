@@ -213,6 +213,16 @@ public struct AyuGramExtraSettings: Codable, Equatable {
     public var d1mplenCleanMyMessagesEnabled = true
     public var d1mplenCommandsEnabled = true
     public var d1mplenTerminatedNotice = true
+    public var pipCrossRadarEnabled = true
+    public var pipAutoLikeEmoji = "👍"
+    public var pipChatButtonSize: Int = 1
+    public var pipChatButtonEnabled = true
+    public var pipAiApiKey: String = ""
+    public var pipAiProvider: Int = 0
+    public var pipAiAutoResponderEnabled = false
+    public var pipAiAutoResponderPrompt: String = "Отвечай коротко, дружелюбно и по делу от моего имени."
+    public var pipAiAutoResponderWhitelist: [Int64] = []
+    public var pipTypingCooldownSeconds: Double = 60.0
     /// Keeps the app running in the background with silent audio and posts local notifications: 0 off, -1 always, else minutes after leaving the app.
 
     public var sendsSilently: Bool {

@@ -190,6 +190,7 @@ public func pipCrossRadarScreen(context: AccountContext) -> ViewController {
     )
 
     let changes = Signal<Int, NoError> { subscriber in
+        subscriber.putNext(0)
         let obs = NotificationCenter.default.addObserver(forName: D1mplenTrackerStore.didChangeNotification, object: nil, queue: .main) { _ in
             subscriber.putNext(0)
         }
@@ -281,10 +282,23 @@ public func pipCrossRadarScreen(context: AccountContext) -> ViewController {
             entries.append(.empty(id: 310, text: "Выберите двух разных пользователей из отслеживаемых контактов для запуска перекрестного анализа."))
         }
 
+        let leftButton = ItemListNavigationButton(
+            content: .text(presentationData.strings.Common_Back),
+            style: .regular,
+            enabled: true,
+            action: { [weak controllerRef] in
+                if let nav = controllerRef?.navigationController as? NavigationController {
+                    let _ = nav.popViewController(animated: true)
+                } else {
+                    controllerRef?.dismiss()
+                }
+            }
+        )
+
         let controllerState = ItemListControllerState(
             presentationData: ItemListPresentationData(presentationData),
             title: .text("Синхронный радар"),
-            leftNavigationButton: nil,
+            leftNavigationButton: leftButton,
             rightNavigationButton: nil,
             backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back)
         )

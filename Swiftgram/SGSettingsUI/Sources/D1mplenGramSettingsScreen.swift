@@ -465,6 +465,29 @@ private func d1mplenScreenEntries(
     return entries
 }
 
+private func presentInputPrompt(
+    context: AccountContext,
+    title: String,
+    initialValue: String,
+    placeholder: String,
+    completion: @escaping (String) -> Void
+) {
+    let strings = context.sharedContext.currentPresentationData.with { $0.strings }
+    let alert = UIAlertController(title: title, message: nil, preferredStyle: .alert)
+    alert.addTextField { field in
+        field.text = initialValue
+        field.placeholder = placeholder
+    }
+    alert.addAction(UIAlertAction(title: strings.Common_Cancel, style: .cancel, handler: nil))
+    alert.addAction(UIAlertAction(title: strings.Common_OK, style: .default, handler: { [weak alert] _ in
+        let text = (alert?.textFields?.first?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !text.isEmpty {
+            completion(text)
+        }
+    }))
+    context.sharedContext.mainWindow?.presentNative(alert)
+}
+
 public func d1mplenGramSettingsScreen(context: AccountContext) -> ViewController {
     weak var controllerRef: ViewController?
     let changes = Signal<Int, NoError> { subscriber in
@@ -555,20 +578,15 @@ public func d1mplenGramSettingsScreen(context: AccountContext) -> ViewController
             }
             items.append(ActionSheetButtonItem(title: "✏️ Ввести свой эмодзи…", color: .accent, action: { [weak sheet] in
                 sheet?.dismissAnimated()
-                let prompt = promptController(
+                presentInputPrompt(
                     context: context,
-                    text: "Введите любой эмодзи для автоматической реакции:",
-                    value: AyuGramSettings.shared.extra.pipAutoLikeEmoji,
+                    title: "Введите эмодзи для авто-лайка:",
+                    initialValue: AyuGramSettings.shared.extra.pipAutoLikeEmoji,
                     placeholder: "Эмодзи",
-                    characterLimit: 8,
-                    apply: { value in
-                        guard let value else { return }
-                        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !trimmed.isEmpty else { return }
-                        AyuGramSettings.shared.updateExtra { $0.pipAutoLikeEmoji = trimmed }
+                    completion: { value in
+                        AyuGramSettings.shared.updateExtra { $0.pipAutoLikeEmoji = value }
                     }
                 )
-                controllerRef?.present(prompt, in: .window(.root))
             }))
             sheet.setItemGroups([
                 ActionSheetItemGroup(items: items),
@@ -607,50 +625,41 @@ public func d1mplenGramSettingsScreen(context: AccountContext) -> ViewController
             items.append(ActionSheetButtonItem(title: "🟢 OpenAI (GPT-4o / GPT-4o-mini)", color: .accent, action: { [weak sheet] in
                 sheet?.dismissAnimated()
                 AyuGramSettings.shared.updateExtra { $0.pipAiProvider = 1 }
-                let prompt = promptController(
+                presentInputPrompt(
                     context: context,
-                    text: "Вставьте ваш API-ключ OpenAI (sk-...):",
-                    value: AyuGramSettings.shared.extra.pipAiApiKey,
+                    title: "API-ключ OpenAI (sk-...):",
+                    initialValue: AyuGramSettings.shared.extra.pipAiApiKey,
                     placeholder: "sk-...",
-                    characterLimit: 200,
-                    apply: { value in
-                        guard let value else { return }
-                        AyuGramSettings.shared.updateExtra { $0.pipAiApiKey = value.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    completion: { value in
+                        AyuGramSettings.shared.updateExtra { $0.pipAiApiKey = value }
                     }
                 )
-                controllerRef?.present(prompt, in: .window(.root))
             }))
             items.append(ActionSheetButtonItem(title: "🔵 Google Gemini (Gemini 2.0 Flash)", color: .accent, action: { [weak sheet] in
                 sheet?.dismissAnimated()
                 AyuGramSettings.shared.updateExtra { $0.pipAiProvider = 2 }
-                let prompt = promptController(
+                presentInputPrompt(
                     context: context,
-                    text: "Вставьте ваш API-ключ Google Gemini:",
-                    value: AyuGramSettings.shared.extra.pipAiApiKey,
+                    title: "API-ключ Google Gemini:",
+                    initialValue: AyuGramSettings.shared.extra.pipAiApiKey,
                     placeholder: "AIza...",
-                    characterLimit: 200,
-                    apply: { value in
-                        guard let value else { return }
-                        AyuGramSettings.shared.updateExtra { $0.pipAiApiKey = value.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    completion: { value in
+                        AyuGramSettings.shared.updateExtra { $0.pipAiApiKey = value }
                     }
                 )
-                controllerRef?.present(prompt, in: .window(.root))
             }))
             items.append(ActionSheetButtonItem(title: "⚡ Groq (Llama 3.3 Ultra-Fast)", color: .accent, action: { [weak sheet] in
                 sheet?.dismissAnimated()
                 AyuGramSettings.shared.updateExtra { $0.pipAiProvider = 3 }
-                let prompt = promptController(
+                presentInputPrompt(
                     context: context,
-                    text: "Вставьте ваш API-ключ Groq (gsk_...):",
-                    value: AyuGramSettings.shared.extra.pipAiApiKey,
+                    title: "API-ключ Groq (gsk_...):",
+                    initialValue: AyuGramSettings.shared.extra.pipAiApiKey,
                     placeholder: "gsk_...",
-                    characterLimit: 200,
-                    apply: { value in
-                        guard let value else { return }
-                        AyuGramSettings.shared.updateExtra { $0.pipAiApiKey = value.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    completion: { value in
+                        AyuGramSettings.shared.updateExtra { $0.pipAiApiKey = value }
                     }
                 )
-                controllerRef?.present(prompt, in: .window(.root))
             }))
             sheet.setItemGroups([
                 ActionSheetItemGroup(items: items),
@@ -661,7 +670,7 @@ public func d1mplenGramSettingsScreen(context: AccountContext) -> ViewController
     })
     let signal = combineLatest(context.sharedContext.presentationData, changes)
     |> deliverOnMainQueue
-    |> map { data, _ -> (ItemListControllerState, (ItemListNodeState, D1mplenScreenArguments)) in
+    |> map { data, _ -> (ItemListControllerState, (ItemListNodeState<D1mplenScreenEntry>, D1mplenScreenArguments)) in
         let barkConfigured = !(AyuGramPushRelay.barkKey ?? "").isEmpty
         let entries = d1mplenScreenEntries(
             extra: AyuGramSettings.shared.extra,
@@ -688,7 +697,7 @@ public func d1mplenGramSettingsScreen(context: AccountContext) -> ViewController
             rightNavigationButton: nil,
             backNavigationButton: ItemListBackButton(title: data.strings.Common_Back)
         )
-        let listState = ItemListNodeState(
+        let listState = ItemListNodeState<D1mplenScreenEntry>(
             presentationData: ItemListPresentationData(data),
             entries: entries,
             style: .blocks,
@@ -696,7 +705,7 @@ public func d1mplenGramSettingsScreen(context: AccountContext) -> ViewController
         )
         return (state, (listState, arguments))
     }
-    let controller = ItemListController(context: context, state: signal)
+    let controller = ItemListController<D1mplenScreenEntry>(context: context, state: signal)
     controllerRef = controller
     return controller
 }

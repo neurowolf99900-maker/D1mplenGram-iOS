@@ -472,6 +472,30 @@ private enum D1mplenStatsEntry: ItemListNodeEntry {
         return lhs.stableId < rhs.stableId
     }
 
+    static func ==(lhs: D1mplenStatsEntry, rhs: D1mplenStatsEntry) -> Bool {
+        if lhs.stableId != rhs.stableId {
+            return false
+        }
+        switch (lhs, rhs) {
+        case let (.header(id1, s1, t1), .header(id2, s2, t2)):
+            return id1 == id2 && s1 == s2 && t1 == t2
+        case let (.metric(id1, s1, sym1, c1, t1, l1, cl1, op1), .metric(id2, s2, sym2, c2, t2, l2, cl2, op2)):
+            return id1 == id2 && s1 == s2 && sym1 == sym2 && c1 == c2 && t1 == t2 && l1 == l2 && cl1 == cl2 && op1 == op2
+        case let (.toggle(id1, s1, sym1, c1, t1, sub1, v1, _), .toggle(id2, s2, sym2, c2, t2, sub2, v2, _)):
+            return id1 == id2 && s1 == s2 && sym1 == sym2 && c1 == c2 && t1 == t2 && sub1 == sub2 && v1 == v2
+        case let (.queuedRow(id1, m1), .queuedRow(id2, m2)):
+            return id1 == id2 && m1 == m2
+        case let (.eventRow(id1, e1), .eventRow(id2, e2)):
+            return id1 == id2 && e1 == e2
+        case let (.actionRow(id1, t1, d1, a1), .actionRow(id2, t2, d2, a2)):
+            return id1 == id2 && t1 == t2 && d1 == d2 && a1 == a2
+        case let (.footer(id1, s1, t1), .footer(id2, s2, t2)):
+            return id1 == id2 && s1 == s2 && t1 == t2
+        default:
+            return false
+        }
+    }
+
     func item(presentationData: ItemListPresentationData, arguments: Any) -> ListViewItem {
         let args = arguments as! D1mplenStatsArguments
         switch self {

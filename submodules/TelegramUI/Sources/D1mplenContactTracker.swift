@@ -140,7 +140,8 @@ final class D1mplenContactTracker {
                             let engine = TelegramEngine(account: account)
                             let _ = (engine.data.get(TelegramEngine.EngineData.Item.Peer.Peer(id: activityPeerId))
                             |> deliverOnMainQueue).startStandalone(next: { peer in
-                                let name = peer?.debugDisplayTitle.flatMap { $0.isEmpty ? nil : $0 } ?? cachedTitle ?? "Собеседник"
+                                let peerTitle = peer?.debugDisplayTitle
+                                let name = (peerTitle?.isEmpty == false ? peerTitle : nil) ?? cachedTitle ?? "Собеседник"
                                 AyuGramBackgroundNotifier.current?.postD1mplenCustomAlert(
                                     accountId: active.id,
                                     account: account,
@@ -190,7 +191,8 @@ final class D1mplenContactTracker {
             let now = Date().timeIntervalSince1970
             let extra = AyuGramSettings.shared.extra
             let fallbackName = D1mplenTrackerStore.shared.contact(for: rawPeerId)?.displayName ?? "Контакт \(rawPeerId)"
-            let displayName = (peer?.debugDisplayTitle).flatMap { $0.isEmpty ? nil : $0 } ?? fallbackName
+            let peerTitle = peer?.debugDisplayTitle
+            let displayName = (peerTitle?.isEmpty == false ? peerTitle : nil) ?? fallbackName
             let username = peer?.addressName
             let avatarId = peer?.smallProfileImage?.resource.id.stringRepresentation
 

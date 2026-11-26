@@ -337,15 +337,45 @@ final class D1mplenChatToolsManager {
         })
     }
 
+    static func parseMarkdownBold(_ input: String) -> (text: String, entities: [MessageTextEntity]) {
+        var cleanText = ""
+        var entities: [MessageTextEntity] = []
+        var index = input.startIndex
+
+        while index < input.endIndex {
+            if input[index...].hasPrefix("**") {
+                let afterStart = input.index(index, offsetBy: 2)
+                if let endRange = input[afterStart...].range(of: "**") {
+                    let boldContent = String(input[afterStart..<endRange.lowerBound])
+                    let startUtf16 = (cleanText as NSString).length
+                    cleanText.append(boldContent)
+                    let endUtf16 = (cleanText as NSString).length
+                    entities.append(MessageTextEntity(range: startUtf16 ..< endUtf16, type: .Bold))
+                    index = endRange.upperBound
+                    continue
+                }
+            }
+            cleanText.append(input[index])
+            index = input.index(after: index)
+        }
+
+        return (cleanText, entities)
+    }
+
     func sendPlainMessage(
         context: AccountContext,
         peerId: EnginePeer.Id,
         threadId: Int64?,
         text: String
     ) {
+        let (cleanText, entities) = Self.parseMarkdownBold(text)
+        var attributes: [MessageAttribute] = []
+        if !entities.isEmpty {
+            attributes.append(TextEntitiesMessageAttribute(entities: entities))
+        }
         let message: EnqueueMessage = .message(
-            text: text,
-            attributes: [],
+            text: cleanText,
+            attributes: attributes,
             inlineStickers: [:],
             mediaReference: nil,
             threadId: threadId,

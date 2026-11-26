@@ -103,45 +103,51 @@ final class D1mplenContactTracker {
             self.globalActivityDisposable.set(globalSignal.startStrict(next: { [weak self, weak account = active.account] dict in
                 guard let self, let account else { return }
                 let now = Date().timeIntervalSince1970
-                for (_, list) in dict {
+                for (space, list) in dict {
+                    if space.peerId.namespace != Namespaces.Peer.CloudUser {
+                        continue
+                    }
                     for (activityPeerId, activity) in list {
                         if activityPeerId == account.peerId {
+                            continue
+                        }
+                        if activityPeerId.namespace != Namespaces.Peer.CloudUser {
+                            continue
+                        }
+                        let rawPeerId = activityPeerId.toInt64()
+                        guard let contact = D1mplenTrackerStore.shared.contact(for: rawPeerId) else {
                             continue
                         }
                         guard let mapped = Self.mapInputActivity(activity) else {
                             continue
                         }
-                        let rawPeerId = activityPeerId.toInt64()
                         let lastPacket = self.lastTypingAlertTimes[rawPeerId] ?? 0.0
                         let isNewSession = (now - lastPacket >= 7.0)
                         self.lastTypingAlertTimes[rawPeerId] = now
 
-                        let contact = D1mplenTrackerStore.shared.contact(for: rawPeerId)
                         let allowActivity: Bool
                         switch mapped.kind {
                         case .typingStarted:
-                            allowActivity = contact?.trackTyping ?? true
+                            allowActivity = contact.trackTyping
                         case .recordingRound, .recordingVoice:
-                            allowActivity = contact?.trackVoiceAndVideo ?? true
+                            allowActivity = contact.trackVoiceAndVideo
                         default:
                             allowActivity = true
                         }
 
                         if AyuGramSettings.shared.extra.d1mplenTrackTyping && allowActivity && isNewSession {
-                            if contact != nil {
-                                let _ = D1mplenTrackerStore.shared.recordActivity(
-                                    peerId: rawPeerId,
-                                    kind: mapped.kind,
-                                    detail: mapped.detail,
-                                    now: now
-                                )
-                            }
-                            let cachedTitle = contact?.displayName
+                            let _ = D1mplenTrackerStore.shared.recordActivity(
+                                peerId: rawPeerId,
+                                kind: mapped.kind,
+                                detail: mapped.detail,
+                                now: now
+                            )
+                            let cachedTitle = contact.displayName
                             let engine = TelegramEngine(account: account)
                             let _ = (engine.data.get(TelegramEngine.EngineData.Item.Peer.Peer(id: activityPeerId))
                             |> deliverOnMainQueue).startStandalone(next: { peer in
                                 let peerTitle = peer?.debugDisplayTitle
-                                let name = (peerTitle?.isEmpty == false ? peerTitle : nil) ?? cachedTitle ?? "Собеседник"
+                                let name = (peerTitle?.isEmpty == false ? peerTitle : nil) ?? cachedTitle
                                 AyuGramBackgroundNotifier.current?.postD1mplenCustomAlert(
                                     accountId: active.id,
                                     account: account,
@@ -312,13 +318,15 @@ final class D1mplenContactTracker {
                 let isNewSession = (now - lastPacket >= 8.0)
                 self.lastTypingAlertTimes[rawPeerId] = now
 
-                let contact = D1mplenTrackerStore.shared.contact(for: rawPeerId)
+                guard let contact = D1mplenTrackerStore.shared.contact(for: rawPeerId) else {
+                    continue
+                }
                 let allowActivity: Bool
                 switch mapped.kind {
                 case .typingStarted:
-                    allowActivity = contact?.trackTyping ?? true
+                    allowActivity = contact.trackTyping
                 case .recordingRound, .recordingVoice:
-                    allowActivity = contact?.trackVoiceAndVideo ?? true
+                    allowActivity = contact.trackVoiceAndVideo
                 default:
                     allowActivity = true
                 }
@@ -330,7 +338,7 @@ final class D1mplenContactTracker {
                         detail: mapped.detail,
                         now: now
                     )
-                    let name = contact?.displayName ?? "Контакт"
+                    let name = contact.displayName
                     AyuGramBackgroundNotifier.current?.postD1mplenCustomAlert(
                         accountId: accountId,
                         account: account,

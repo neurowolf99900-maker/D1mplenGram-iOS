@@ -369,7 +369,7 @@ final class D1mplenChatToolsManager {
         text: String
     ) {
         let (cleanText, entities) = Self.parseMarkdownBold(text)
-        var attributes: [MessageAttribute] = []
+        var attributes: [EngineMessage.Attribute] = []
         if !entities.isEmpty {
             attributes.append(TextEntitiesMessageAttribute(entities: entities))
         }

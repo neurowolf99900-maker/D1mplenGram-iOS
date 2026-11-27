@@ -670,9 +670,10 @@ public func d1mplenGramSettingsScreen(context: AccountContext) -> ViewController
             let shareText = "👑 Попробуй Pip — приватный клиент Telegram со скрытым чтением, анти-удалением сообщений, мониторингом онлайна и фантомной блокировкой!\n\nСкачай и активируй мой промокод в настройках Pip Tools: \(myCode) и получи 30 дней Pip Pro бесплатно!"
             let activityController = UIActivityViewController(activityItems: [shareText], applicationActivities: nil)
             if let window = context.sharedContext.mainWindow {
-                activityController.popoverPresentationController?.sourceView = window.view
-                activityController.popoverPresentationController?.sourceRect = CGRect(x: window.view.bounds.midX, y: window.view.bounds.midY, width: 0, height: 0)
-                activityController.popoverPresentationController?.permittedArrowDirections = []
+                if let view = window.viewController?.view {
+                    activityController.popoverPresentationController?.sourceView = view
+                    activityController.popoverPresentationController?.sourceRect = CGRect(origin: CGPoint(x: view.bounds.midX, y: view.bounds.midY), size: CGSize(width: 1.0, height: 1.0))
+                }
                 window.presentNative(activityController)
             }
         case .copyReferralCode:

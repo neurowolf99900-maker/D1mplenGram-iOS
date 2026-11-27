@@ -711,7 +711,7 @@ public func d1mplenGramSettingsScreen(context: AccountContext) -> ViewController
                     context.sharedContext.mainWindow?.presentNative(alert)
 
                     if result.success, let inviterId = result.inviterPeerId {
-                        let inviterPeer = EnginePeer.Id(namespace: Namespaces.Peer.CloudUser, id: EnginePeer.Id.Id(inviterId))
+                        let inviterPeer = EnginePeer.Id(namespace: Namespaces.Peer.CloudUser, id: EnginePeer.Id.Id._internalFromInt64Value(abs(inviterId)))
                         let msgText = "👑 Привет! Я установил Pip по твоему промокоду: PIP-\(abs(inviterId)). Твой бонус начислен!"
                         let message: EnqueueMessage = .message(
                             text: msgText,

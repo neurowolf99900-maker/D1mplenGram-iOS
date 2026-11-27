@@ -817,6 +817,22 @@ private func d1mplenContactStatsEntries(
     ))
     entries.append(.footer(id: 283, section: .profile, text: "Pip AI при входящем сообщении мгновенно включит индикатор «печатает...», выдержит выбранную паузу и отправит живой ответ точно в вашей манере."))
 
+    let isPhantomBlocked = D1mplenTrackerStore.shared.isPhantomBlocked(cPeerId)
+    entries.append(.header(id: 290, section: .profile, text: "👻 СТЕЛС-БЛОКИРОВКА (ФАНТОМНЫЙ БЛОК)"))
+    entries.append(.toggle(
+        id: 291,
+        section: .profile,
+        symbol: "nosign",
+        color: AyuGramRowColor.red,
+        title: "Фантомный блок",
+        subtitle: isPhantomBlocked ? "ВКЛ: Любые входящие сообщения мгновенно стираются у обоих" : "Выкл: Обычный приём сообщений",
+        value: isPhantomBlocked,
+        onToggle: { _ in
+            let _ = D1mplenTrackerStore.shared.togglePhantomBlock(peerId: cPeerId, displayName: contact?.displayName, username: contact?.username)
+        }
+    ))
+    entries.append(.footer(id: 292, section: .profile, text: "Собеседник видит вас онлайн и может отправлять сообщения. Однако сразу после доставки сообщение автоматически стирается для обоих участников без звука и уведомлений."))
+
     if !queued.isEmpty {
         entries.append(.header(id: 300, section: .queued, text: "ОЧЕРЕДЬ «ОТПРАВИТЬ ПРИ ВХОДЕ В СЕТЬ»"))
         for (idx, item) in queued.enumerated() {

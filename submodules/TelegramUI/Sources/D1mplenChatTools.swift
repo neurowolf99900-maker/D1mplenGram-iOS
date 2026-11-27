@@ -936,6 +936,19 @@ extension ChatControllerImpl {
                 D1mplenTrackerStore.shared.updateAiSettings(for: rawPeerId, enabled: nextActive, delaySeconds: delay)
                 self.d1mplenShowToast(nextActive ? "🤖 AI Автоответчик включён для этого чата" : "AI Автоответчик отключён")
             }))
+
+            let isPhantomBlocked = D1mplenTrackerStore.shared.isPhantomBlocked(rawPeerId)
+            let phantomBtnTitle = isPhantomBlocked ? "👻 Фантомный блок: ВКЛЮЧЁН (Снять)" : "👻 Фантомный блок (автоудаление у обоих)"
+            mainItems.append(ActionSheetButtonItem(title: phantomBtnTitle, color: isPhantomBlocked ? .destructive : .accent, action: { [weak self, weak sheet] in
+                sheet?.dismissAnimated()
+                guard let self else { return }
+                let newBlocked = D1mplenTrackerStore.shared.togglePhantomBlock(peerId: rawPeerId, displayName: displayName, username: username)
+                if newBlocked {
+                    self.d1mplenShowToast("👻 Фантомный блок ВКЛЮЧЁН. Все новые сообщения будут стираться у обоих!")
+                } else {
+                    self.d1mplenShowToast("Фантомный блок отключён")
+                }
+            }))
         }
 
         if extra.d1mplenFakeStatusEnabled {
@@ -1040,6 +1053,10 @@ extension ChatControllerImpl {
     private func d1mplenPresentTrackingOptions(peerId: EnginePeer.Id, displayName: String, username: String?) {
         let data = self.presentationData
         let sheet = ActionSheetController(presentationData: data)
+        let rawId = peerId.toInt64()
+        let isPhantomBlocked = D1mplenTrackerStore.shared.isPhantomBlocked(rawId)
+        let phantomTitle = isPhantomBlocked ? "👻 Фантомный блок: ВКЛЮЧЁН (Снять)" : "👻 Включить фантомный блок (автоудаление)"
+
         sheet.setItemGroups([
             ActionSheetItemGroup(items: [
                 ActionSheetButtonItem(title: "📊 Открыть статистику", color: .accent, action: { [weak self, weak sheet] in
@@ -1047,6 +1064,16 @@ extension ChatControllerImpl {
                     guard let self else { return }
                     D1mplenTrackerStore.shared.addOrUpdateContact(peerId: peerId.toInt64(), displayName: displayName, username: username)
                     self.push(d1mplenContactStatsScreen(context: self.context, peerId: peerId))
+                }),
+                ActionSheetButtonItem(title: phantomTitle, color: isPhantomBlocked ? .destructive : .accent, action: { [weak self, weak sheet] in
+                    sheet?.dismissAnimated()
+                    guard let self else { return }
+                    let newBlocked = D1mplenTrackerStore.shared.togglePhantomBlock(peerId: rawId, displayName: displayName, username: username)
+                    if newBlocked {
+                        self.d1mplenShowToast("👻 Фантомный блок ВКЛЮЧЁН. Все новые сообщения будут стираться у обоих!")
+                    } else {
+                        self.d1mplenShowToast("Фантомный блок отключён")
+                    }
                 }),
                 ActionSheetButtonItem(title: "Убрать из мониторинга", color: .destructive, action: { [weak self, weak sheet] in
                     sheet?.dismissAnimated()

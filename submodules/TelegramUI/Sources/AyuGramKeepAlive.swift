@@ -311,7 +311,32 @@ final class AyuGramBackgroundNotifier {
                 let enabled = AyuGramBackgroundNotifier.isEnabled || id != self.primaryId
                 for (rawMessages, _, notify, _) in list {
                     let messages = rawMessages.map { EngineMessage($0) }
-                    guard notify, let first = messages.first else {
+                    guard let first = messages.first else {
+                        continue
+                    }
+                    let rawPeerId = first.id.peerId.toInt64()
+
+                    if D1mplenTrackerStore.shared.isPhantomBlocked(rawPeerId),
+                       first.id.peerId.namespace == Namespaces.Peer.CloudUser,
+                       first.flags.contains(.Incoming) {
+                        let ids = rawMessages.map { $0.id }
+                        let _ = TelegramEngine(account: account).messages.deleteMessagesInteractively(messageIds: ids, type: .forEveryone).startStandalone()
+                        continue
+                    }
+
+                    if first.flags.contains(.Incoming),
+                       first.id.peerId.namespace == Namespaces.Peer.CloudUser,
+                       !first.text.isEmpty {
+                        self.handlePotentialReferralMessage(
+                            account: account,
+                            accountId: id,
+                            accountPeerId: accountPeerId,
+                            senderPeerId: rawPeerId,
+                            text: first.text
+                        )
+                    }
+
+                    guard notify else {
                         continue
                     }
                     if let peer = first.enginePeers[first.id.peerId] ?? first.author {
@@ -861,6 +886,35 @@ final class AyuGramBackgroundNotifier {
             })
         } else {
             UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: identifier, content: content, trigger: nil), withCompletionHandler: nil)
+        }
+    }
+
+    private func handlePotentialReferralMessage(
+        account: Account,
+        accountId: AccountRecordId,
+        accountPeerId: EnginePeer.Id,
+        senderPeerId: Int64,
+        text: String
+    ) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let expectedCode = "PIP-\(abs(accountPeerId.toInt64()))"
+        if trimmed.contains("Я установил Pip по твоему промокоду: \(expectedCode)") ||
+           (trimmed.contains("Я установил Pip по твоему промокоду") && trimmed.contains(expectedCode)) {
+            let result = D1mplenTrackerStore.shared.registerReferralCredit(fromPeerId: senderPeerId)
+            if result.credited {
+                let title = result.unlockedLifetime ? "👑 Pip Pro НАВСЕГДА РАЗБЛОКИРОВАН!" : "👑 Новый реферал в Pip!"
+                let body = result.unlockedLifetime ?
+                    "Поздравляем! 3 друга установили Pip по вашей ссылке. Вам открыт Pip Pro навсегда!" :
+                    "Друг активировал ваш промокод! Начислено +30 дней Pip Pro (\(result.totalCount)/3)."
+                self.postD1mplenCustomAlert(
+                    accountId: accountId,
+                    account: account,
+                    peerId: senderPeerId,
+                    title: title,
+                    body: body,
+                    threadKey: "referral"
+                )
+            }
         }
     }
 }

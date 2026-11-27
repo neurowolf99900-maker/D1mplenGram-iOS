@@ -12,6 +12,7 @@ import SGItemListUI
 import SGSimpleSettings
 
 private enum D1mplenScreenSection: Int32 {
+    case proReferral
     case features
     case tracker
     case chatTools
@@ -46,6 +47,9 @@ private enum D1mplenScreenToggle: Equatable {
 }
 
 private enum D1mplenScreenAction: Equatable {
+    case shareReferral
+    case copyReferralCode
+    case enterReferralCode
     case openTracker
     case setupBark
     case openCrossRadar
@@ -153,12 +157,86 @@ private enum D1mplenScreenEntry: ItemListNodeEntry {
 }
 
 private func d1mplenScreenEntries(
+    context: AccountContext,
     extra: AyuGramExtraSettings,
     tabBarSearchEnabled: Bool,
     trackedCount: Int,
     barkConfigured: Bool
 ) -> [D1mplenScreenEntry] {
     var entries: [D1mplenScreenEntry] = []
+
+    let myPeerId = context.account.peerId.toInt64()
+    let store = D1mplenTrackerStore.shared
+    let hasPro = store.hasPipPro
+    let isLifetime = store.isLifetimePro
+    let proStatus = store.proStatusText
+    let refCount = store.referralCount
+    let myCode = store.myReferralCode(myPeerId: myPeerId)
+    let activatedCode = store.activatedReferralCode
+
+    entries.append(.header(id: 10, section: .proReferral, text: "👑 PIP PRO & РЕФЕРАЛЬНАЯ ПРОГРАММА"))
+    entries.append(.disclosure(
+        id: 11,
+        section: .proReferral,
+        action: .shareReferral,
+        symbol: "crown.fill",
+        color: AyuGramRowColor.orange,
+        title: "Статус подписки Pip Pro",
+        label: isLifetime ? "Навсегда 👑" : (hasPro ? proStatus : "Базовый 🔒")
+    ))
+    entries.append(.disclosure(
+        id: 12,
+        section: .proReferral,
+        action: .shareReferral,
+        symbol: "person.3.fill",
+        color: AyuGramRowColor.purple,
+        title: "Приглашено друзей",
+        label: "\(refCount) / 3 \(isLifetime ? "✅ (Безлимит)" : "")"
+    ))
+    entries.append(.disclosure(
+        id: 13,
+        section: .proReferral,
+        action: .copyReferralCode,
+        symbol: "doc.on.doc.fill",
+        color: AyuGramRowColor.blue,
+        title: "Мой промокод (скопировать)",
+        label: myCode
+    ))
+    entries.append(.disclosure(
+        id: 14,
+        section: .proReferral,
+        action: .shareReferral,
+        symbol: "square.and.arrow.up.fill",
+        color: AyuGramRowColor.green,
+        title: "Поделиться ссылкой с другом",
+        label: "+30 дн. за друга"
+    ))
+    if let activatedCode {
+        entries.append(.disclosure(
+            id: 15,
+            section: .proReferral,
+            action: .enterReferralCode,
+            symbol: "checkmark.seal.fill",
+            color: AyuGramRowColor.teal,
+            title: "Активированный код",
+            label: activatedCode
+        ))
+    } else {
+        entries.append(.disclosure(
+            id: 15,
+            section: .proReferral,
+            action: .enterReferralCode,
+            symbol: "gift.fill",
+            color: AyuGramRowColor.pink,
+            title: "Ввести промокод друга",
+            label: "+30 дней Pro"
+        ))
+    }
+    entries.append(.footer(
+        id: 19,
+        section: .proReferral,
+        text: "👑 Реферальная система Pip: делитесь промокодом с друзьями! 1 приглашённый = +30 дней Pip Pro. Пригласите 3 друзей и получите пожизненный статус Pip Pro НАВСЕГДА без каких-либо затрат!"
+    ))
 
     entries.append(.header(id: 100, section: .features, text: "ФУНКЦИИ PIP: АВТОМАТИЗАЦИЯ"))
     let currentAutoEmoji = extra.pipAutoLikeEmoji.isEmpty ? "👍" : extra.pipAutoLikeEmoji
@@ -586,6 +664,65 @@ public func d1mplenGramSettingsScreen(context: AccountContext) -> ViewController
         }
     }, action: { action in
         switch action {
+        case .shareReferral:
+            let myPeerId = context.account.peerId.toInt64()
+            let myCode = D1mplenTrackerStore.shared.myReferralCode(myPeerId: myPeerId)
+            let shareText = "👑 Попробуй Pip — приватный клиент Telegram со скрытым чтением, анти-удалением сообщений, мониторингом онлайна и фантомной блокировкой!\n\nСкачай и активируй мой промокод в настройках Pip Tools: \(myCode) и получи 30 дней Pip Pro бесплатно!"
+            let activityController = UIActivityViewController(activityItems: [shareText], applicationActivities: nil)
+            controllerRef?.present(activityController, in: .window(.root))
+        case .copyReferralCode:
+            let myPeerId = context.account.peerId.toInt64()
+            let myCode = D1mplenTrackerStore.shared.myReferralCode(myPeerId: myPeerId)
+            UIPasteboard.general.string = myCode
+            let presentationData = context.sharedContext.currentPresentationData.with { $0 }
+            let alert = UIAlertController(title: "Промокод скопирован! 📋", message: "Ваш код \(myCode) скопирован в буфер обмена. Отправьте его друзьям, чтобы получать по +30 дней Pip Pro за каждого!", preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: presentationData.strings.Common_OK, style: .default, handler: nil))
+            context.sharedContext.mainWindow?.presentNative(alert)
+        case .enterReferralCode:
+            let myPeerId = context.account.peerId.toInt64()
+            let store = D1mplenTrackerStore.shared
+            if let active = store.activatedReferralCode {
+                let presentationData = context.sharedContext.currentPresentationData.with { $0 }
+                let alert = UIAlertController(title: "Промокод уже активен", message: "Вы уже активировали промокод \(active). Бонусные 30 дней Pip Pro начислены!", preferredStyle: .alert)
+                alert.addAction(UIAlertAction(title: presentationData.strings.Common_OK, style: .default, handler: nil))
+                context.sharedContext.mainWindow?.presentNative(alert)
+                return
+            }
+            presentInputPrompt(
+                context: context,
+                title: "🎁 Ввести промокод друга:",
+                initialValue: "PIP-",
+                placeholder: "PIP-123456789",
+                completion: { entered in
+                    let result = store.applyFriendReferralCode(entered, myPeerId: myPeerId)
+                    let presentationData = context.sharedContext.currentPresentationData.with { $0 }
+                    let alert = UIAlertController(
+                        title: result.success ? "Успешно! 👑" : "Ошибка",
+                        message: result.message,
+                        preferredStyle: .alert
+                    )
+                    alert.addAction(UIAlertAction(title: presentationData.strings.Common_OK, style: .default, handler: nil))
+                    context.sharedContext.mainWindow?.presentNative(alert)
+
+                    if result.success, let inviterId = result.inviterPeerId {
+                        let inviterPeer = EnginePeer.Id(namespace: Namespaces.Peer.CloudUser, id: EnginePeer.Id.Id(inviterId))
+                        let msgText = "👑 Привет! Я установил Pip по твоему промокоду: PIP-\(abs(inviterId)). Твой бонус начислен!"
+                        let message: EnqueueMessage = .message(
+                            text: msgText,
+                            attributes: [],
+                            inlineStickers: [:],
+                            mediaReference: nil,
+                            threadId: nil,
+                            replyToMessageId: nil,
+                            replyToStoryId: nil,
+                            localGroupingKey: nil,
+                            correlationId: nil,
+                            bubbleUpEmojiOrStickersets: []
+                        )
+                        let _ = enqueueMessages(account: context.account, peerId: inviterPeer, messages: [message]).startStandalone()
+                    }
+                }
+            )
         case .openTracker:
             controllerRef?.push(d1mplenTrackerSettingsScreen(context: context))
         case .openCrossRadar:
@@ -710,6 +847,7 @@ public func d1mplenGramSettingsScreen(context: AccountContext) -> ViewController
     |> map { data, _ -> (ItemListControllerState, (ItemListNodeState, Any)) in
         let barkConfigured = !(AyuGramPushRelay.barkKey ?? "").isEmpty
         let entries = d1mplenScreenEntries(
+            context: context,
             extra: AyuGramSettings.shared.extra,
             tabBarSearchEnabled: SGSimpleSettings.shared.tabBarSearchEnabled,
             trackedCount: D1mplenTrackerStore.shared.trackedPeerIds().count,

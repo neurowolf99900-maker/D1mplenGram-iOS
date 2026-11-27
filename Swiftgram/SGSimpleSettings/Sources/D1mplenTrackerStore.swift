@@ -131,6 +131,7 @@ public struct D1mplenTrackedContact: Codable, Equatable {
     public var trackVoiceAndVideo: Bool
     public var aiAutoReplyEnabled: Bool
     public var aiAutoReplyDelaySeconds: Int32
+    public var phantomBlockEnabled: Bool
 
     public init(
         peerId: Int64,
@@ -152,7 +153,8 @@ public struct D1mplenTrackedContact: Codable, Equatable {
         trackTyping: Bool = true,
         trackVoiceAndVideo: Bool = true,
         aiAutoReplyEnabled: Bool = false,
-        aiAutoReplyDelaySeconds: Int32 = 10
+        aiAutoReplyDelaySeconds: Int32 = 10,
+        phantomBlockEnabled: Bool = false
     ) {
         self.peerId = peerId
         self.displayName = displayName
@@ -174,6 +176,7 @@ public struct D1mplenTrackedContact: Codable, Equatable {
         self.trackVoiceAndVideo = trackVoiceAndVideo
         self.aiAutoReplyEnabled = aiAutoReplyEnabled
         self.aiAutoReplyDelaySeconds = aiAutoReplyDelaySeconds
+        self.phantomBlockEnabled = phantomBlockEnabled
     }
 
     public init(from decoder: Decoder) throws {
@@ -198,6 +201,7 @@ public struct D1mplenTrackedContact: Codable, Equatable {
         self.trackVoiceAndVideo = try c.decodeIfPresent(Bool.self, forKey: .trackVoiceAndVideo) ?? true
         self.aiAutoReplyEnabled = try c.decodeIfPresent(Bool.self, forKey: .aiAutoReplyEnabled) ?? false
         self.aiAutoReplyDelaySeconds = try c.decodeIfPresent(Int32.self, forKey: .aiAutoReplyDelaySeconds) ?? 10
+        self.phantomBlockEnabled = try c.decodeIfPresent(Bool.self, forKey: .phantomBlockEnabled) ?? false
     }
 }
 
@@ -260,6 +264,40 @@ public struct D1mplenContactAnalytics: Equatable {
 private struct D1mplenTrackerState: Codable {
     var contacts: [D1mplenTrackedContact] = []
     var queuedMessages: [D1mplenQueuedOnlineMessage] = []
+    var standalonePhantomBlockedPeers: [Int64] = []
+    var activatedReferralCode: String? = nil
+    var referredByPeers: [Int64] = []
+    var proExpiryTimestamp: Double? = nil
+    var hasLifetimePro: Bool = false
+
+    init(
+        contacts: [D1mplenTrackedContact] = [],
+        queuedMessages: [D1mplenQueuedOnlineMessage] = [],
+        standalonePhantomBlockedPeers: [Int64] = [],
+        activatedReferralCode: String? = nil,
+        referredByPeers: [Int64] = [],
+        proExpiryTimestamp: Double? = nil,
+        hasLifetimePro: Bool = false
+    ) {
+        self.contacts = contacts
+        self.queuedMessages = queuedMessages
+        self.standalonePhantomBlockedPeers = standalonePhantomBlockedPeers
+        self.activatedReferralCode = activatedReferralCode
+        self.referredByPeers = referredByPeers
+        self.proExpiryTimestamp = proExpiryTimestamp
+        self.hasLifetimePro = hasLifetimePro
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.contacts = try c.decodeIfPresent([D1mplenTrackedContact].self, forKey: .contacts) ?? []
+        self.queuedMessages = try c.decodeIfPresent([D1mplenQueuedOnlineMessage].self, forKey: .queuedMessages) ?? []
+        self.standalonePhantomBlockedPeers = try c.decodeIfPresent([Int64].self, forKey: .standalonePhantomBlockedPeers) ?? []
+        self.activatedReferralCode = try c.decodeIfPresent(String.self, forKey: .activatedReferralCode)
+        self.referredByPeers = try c.decodeIfPresent([Int64].self, forKey: .referredByPeers) ?? []
+        self.proExpiryTimestamp = try c.decodeIfPresent(Double.self, forKey: .proExpiryTimestamp)
+        self.hasLifetimePro = try c.decodeIfPresent(Bool.self, forKey: .hasLifetimePro) ?? false
+    }
 }
 
 public final class D1mplenTrackerStore {
@@ -428,6 +466,208 @@ public final class D1mplenTrackerStore {
             self.saveAndNotifyLocked()
         }
         self.lock.unlock()
+    }
+
+    // MARK: - Phantom Block
+
+    public func isPhantomBlocked(_ peerId: Int64) -> Bool {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        if self.state.standalonePhantomBlockedPeers.contains(peerId) {
+            return true
+        }
+        if let contact = self.state.contacts.first(where: { $0.peerId == peerId }), contact.phantomBlockEnabled {
+            return true
+        }
+        return false
+    }
+
+    @discardableResult
+    public func togglePhantomBlock(peerId: Int64, displayName: String? = nil, username: String? = nil) -> Bool {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+
+        var nextState = false
+        if let index = self.state.contacts.firstIndex(where: { $0.peerId == peerId }) {
+            nextState = !self.state.contacts[index].phantomBlockEnabled
+            self.state.contacts[index].phantomBlockEnabled = nextState
+            if nextState {
+                if !self.state.standalonePhantomBlockedPeers.contains(peerId) {
+                    self.state.standalonePhantomBlockedPeers.append(peerId)
+                }
+            } else {
+                self.state.standalonePhantomBlockedPeers.removeAll { $0 == peerId }
+            }
+        } else {
+            if self.state.standalonePhantomBlockedPeers.contains(peerId) {
+                self.state.standalonePhantomBlockedPeers.removeAll { $0 == peerId }
+                nextState = false
+            } else {
+                self.state.standalonePhantomBlockedPeers.append(peerId)
+                nextState = true
+            }
+        }
+        self.saveAndNotifyLocked()
+        return nextState
+    }
+
+    public func setPhantomBlock(peerId: Int64, enabled: Bool, displayName: String? = nil, username: String? = nil) {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+
+        if let index = self.state.contacts.firstIndex(where: { $0.peerId == peerId }) {
+            self.state.contacts[index].phantomBlockEnabled = enabled
+        }
+        if enabled {
+            if !self.state.standalonePhantomBlockedPeers.contains(peerId) {
+                self.state.standalonePhantomBlockedPeers.append(peerId)
+            }
+        } else {
+            self.state.standalonePhantomBlockedPeers.removeAll { $0 == peerId }
+        }
+        self.saveAndNotifyLocked()
+    }
+
+    // MARK: - Pip Pro & Referral System
+
+    public var hasPipPro: Bool {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        if self.state.hasLifetimePro {
+            return true
+        }
+        if let expiry = self.state.proExpiryTimestamp, expiry > Date().timeIntervalSince1970 {
+            return true
+        }
+        return false
+    }
+
+    public var isLifetimePro: Bool {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        return self.state.hasLifetimePro
+    }
+
+    public var referralCount: Int {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        return self.state.referredByPeers.count
+    }
+
+    public var activatedReferralCode: String? {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        return self.state.activatedReferralCode
+    }
+
+    public var hasActivatedReferral: Bool {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        return self.state.activatedReferralCode != nil
+    }
+
+    public var proStatusText: String {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        if self.state.hasLifetimePro {
+            return "Pip Pro Навсегда 👑 (Пожизненно)"
+        }
+        if let expiry = self.state.proExpiryTimestamp, expiry > Date().timeIntervalSince1970 {
+            let days = Int(ceil((expiry - Date().timeIntervalSince1970) / 86400.0))
+            return "Pip Pro (\(days) дн.) ⭐"
+        }
+        return "Базовый статус (без Pro) 🔒"
+    }
+
+    public func myReferralCode(myPeerId: Int64) -> String {
+        return "PIP-\(abs(myPeerId))"
+    }
+
+    public static func parseReferralCode(_ raw: String) -> Int64? {
+        var clean = raw.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        if clean.hasPrefix("PIP-") {
+            clean.removeFirst(4)
+        } else if clean.hasPrefix("PIP") {
+            clean.removeFirst(3)
+        }
+        clean = clean.trimmingCharacters(in: CharacterSet(charactersIn: "-_ "))
+        return Int64(clean)
+    }
+
+    public func canApplyFriendCode(_ raw: String, myPeerId: Int64) -> (canApply: Bool, inviterPeerId: Int64?, error: String?) {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+
+        if self.state.activatedReferralCode != nil {
+            return (false, nil, "Вы уже активировали промокод ранее.")
+        }
+        guard let friendId = Self.parseReferralCode(raw), friendId > 0 else {
+            return (false, nil, "Неверный формат кода. Формат: PIP-123456789")
+        }
+        if abs(friendId) == abs(myPeerId) {
+            return (false, nil, "Нельзя активировать собственный промокод.")
+        }
+        return (true, friendId, nil)
+    }
+
+    public func applyFriendReferralCode(_ raw: String, myPeerId: Int64) -> (success: Bool, inviterPeerId: Int64?, message: String) {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+
+        if self.state.activatedReferralCode != nil {
+            return (false, nil, "Вы уже активировали промокод ранее.")
+        }
+        guard let friendId = Self.parseReferralCode(raw), friendId > 0 else {
+            return (false, nil, "Неверный формат кода. Пример: PIP-123456789")
+        }
+        if abs(friendId) == abs(myPeerId) {
+            return (false, nil, "Нельзя активировать собственный промокод.")
+        }
+
+        let canonicalCode = "PIP-\(abs(friendId))"
+        self.state.activatedReferralCode = canonicalCode
+
+        if !self.state.hasLifetimePro {
+            let now = Date().timeIntervalSince1970
+            let currentEnd = max(now, self.state.proExpiryTimestamp ?? now)
+            self.state.proExpiryTimestamp = currentEnd + (30.0 * 86400.0)
+        }
+        self.saveAndNotifyLocked()
+        return (true, friendId, "Промокод успешно активирован! Вам начислено 30 дней Pip Pro 👑")
+    }
+
+    public func registerReferralCredit(fromPeerId: Int64) -> (credited: Bool, totalCount: Int, unlockedLifetime: Bool) {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+
+        if self.state.referredByPeers.contains(fromPeerId) {
+            return (false, self.state.referredByPeers.count, self.state.hasLifetimePro)
+        }
+
+        self.state.referredByPeers.append(fromPeerId)
+        let totalCount = self.state.referredByPeers.count
+
+        if totalCount >= 3 {
+            self.state.hasLifetimePro = true
+        } else if !self.state.hasLifetimePro {
+            let now = Date().timeIntervalSince1970
+            let currentEnd = max(now, self.state.proExpiryTimestamp ?? now)
+            self.state.proExpiryTimestamp = currentEnd + (30.0 * 86400.0)
+        }
+
+        self.saveAndNotifyLocked()
+        return (true, totalCount, self.state.hasLifetimePro)
+    }
+
+    public func extendPro(days: Int) {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+
+        if self.state.hasLifetimePro { return }
+        let now = Date().timeIntervalSince1970
+        let currentEnd = max(now, self.state.proExpiryTimestamp ?? now)
+        self.state.proExpiryTimestamp = currentEnd + (Double(days) * 86400.0)
+        self.saveAndNotifyLocked()
     }
 
     public func updatePresence(

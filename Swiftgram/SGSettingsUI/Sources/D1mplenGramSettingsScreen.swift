@@ -669,7 +669,12 @@ public func d1mplenGramSettingsScreen(context: AccountContext) -> ViewController
             let myCode = D1mplenTrackerStore.shared.myReferralCode(myPeerId: myPeerId)
             let shareText = "👑 Попробуй Pip — приватный клиент Telegram со скрытым чтением, анти-удалением сообщений, мониторингом онлайна и фантомной блокировкой!\n\nСкачай и активируй мой промокод в настройках Pip Tools: \(myCode) и получи 30 дней Pip Pro бесплатно!"
             let activityController = UIActivityViewController(activityItems: [shareText], applicationActivities: nil)
-            controllerRef?.present(activityController, in: .window(.root))
+            if let window = context.sharedContext.mainWindow {
+                activityController.popoverPresentationController?.sourceView = window.view
+                activityController.popoverPresentationController?.sourceRect = CGRect(x: window.view.bounds.midX, y: window.view.bounds.midY, width: 0, height: 0)
+                activityController.popoverPresentationController?.permittedArrowDirections = []
+                window.presentNative(activityController)
+            }
         case .copyReferralCode:
             let myPeerId = context.account.peerId.toInt64()
             let myCode = D1mplenTrackerStore.shared.myReferralCode(myPeerId: myPeerId)
